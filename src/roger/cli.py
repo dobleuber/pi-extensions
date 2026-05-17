@@ -14,6 +14,7 @@ from roger.benchmarks.wake_nanowakeword import ARCHITECTURES
 from roger.benchmarks.speech import build_stt_plan, build_tts_plan, build_vad_plan
 from roger.backends.factory import create_stt_backend, create_tts_backend, create_vad_backend, create_wake_backend
 from roger.config import RogerConfig
+from roger.daemon import RogerDaemon
 from roger.feedback import CompositeFeedback, ConsoleFeedback
 from roger.feedback_system import SystemFeedback
 from roger.pi_rpc.runner import PiAgentRunner
@@ -72,6 +73,19 @@ def build_parser() -> argparse.ArgumentParser:
     listen_once.add_argument("--wake-debug", action="store_true", help="Print NanoWakeWord scores while waiting")
     listen_once.add_argument("--wake-debug-min-score", type=float, default=0.2, help="Minimum score printed by --wake-debug")
 
+    daemon = subcommands.add_parser("daemon", help="Run Roger continuously until interrupted")
+    daemon.add_argument("--config", type=Path, default=None, help="Path to roger TOML config")
+    daemon.add_argument("--project-dir", type=Path, default=Path.cwd(), help="Current project directory")
+    daemon.add_argument("--manual-wake", action="store_true", help="Use and trigger the manual wake adapter before each cycle")
+    daemon.add_argument("--preview-action", choices=("accept", "cancel", "timeout"), default="accept")
+    daemon.add_argument("--offline", action="store_true", help="Use offline/Ollama pi-agent mode")
+    daemon.add_argument("--no-tts", action="store_true", help="Do not synthesize spoken output")
+    daemon.add_argument("--quiet", action="store_true", help="Suppress console and desktop feedback")
+    daemon.add_argument("--wake-threshold", type=float, default=None, help="Override wake detection threshold for this run")
+    daemon.add_argument("--wake-debug", action="store_true", help="Print NanoWakeWord scores while waiting")
+    daemon.add_argument("--wake-debug-min-score", type=float, default=0.2, help="Minimum score printed by --wake-debug")
+    daemon.add_argument("--max-cycles", type=int, default=None, help="Stop after N wake/instruction cycles; useful for tests")
+
     wake_file = subcommands.add_parser("wake-file", help="Score a recorded WAV file with the configured wake adapter")
     wake_file.add_argument("audio", type=Path, help="16 kHz mono PCM WAV containing the wake phrase")
     wake_file.add_argument("--config", type=Path, default=None, help="Path to roger TOML config")
@@ -107,33 +121,20 @@ def run(argv: Sequence[str] | None = None, dependencies: RuntimeDependencies | N
         mode = "dry-run" if args.dry_run else "run"
         return 0, _format_spike(args.spike, mode)
     if args.command == "listen-once":
-        registry = _registry_from_config(config)
-        wake = dependencies.create_wake_backend(config, force_manual=args.manual_wake)
-        if args.wake_threshold is not None and hasattr(wake, "threshold"):
-            wake.threshold = args.wake_threshold
-        if args.wake_debug and hasattr(wake, "score_callback"):
-            wake.score_callback = _build_wake_score_callback(quiet=args.quiet, min_score=args.wake_debug_min_score)
+        registry, wake, loop = _build_voice_loop(args, config, dependencies)
         if args.manual_wake and hasattr(wake, "trigger"):
             wake.trigger()
-        feedback = None if args.quiet else CompositeFeedback([
-            ConsoleFeedback(echo=True, show_waiting=False),
-            SystemFeedback(),
-        ])
-        loop = dependencies.voice_loop_class(
-            registry,
-            wake,
-            dependencies.create_vad_backend(config),
-            dependencies.create_stt_backend(config),
-            dependencies.create_pi_runner(config, registry, offline=args.offline),
-            dependencies.create_tts_speaker(config, no_tts=args.no_tts),
-            preview_action=args.preview_action,
-            feedback=feedback,
-        )
         try:
             result = loop.run_once()
         except KeyboardInterrupt:
             return 130, "Roger interrumpido por el usuario\n"
         return 0, _format_listen_once_result(result)
+    if args.command == "daemon":
+        _registry, wake, loop = _build_voice_loop(args, config, dependencies)
+        before_cycle = wake.trigger if args.manual_wake and hasattr(wake, "trigger") else None
+        result = RogerDaemon(loop=loop, before_cycle=before_cycle).run(max_cycles=args.max_cycles)
+        exit_code = 130 if result.status == "interrupted" else 0
+        return exit_code, _format_daemon_result(result)
     if args.command == "wake-file":
         wake = dependencies.create_wake_backend(config, force_manual=False)
         if args.wake_threshold is not None and hasattr(wake, "threshold"):
@@ -199,6 +200,39 @@ def _format_listen_once_result(result) -> str:
     if result.message:
         lines.append(f"message: {result.message}")
     return "\n".join(lines) + "\n"
+
+
+def _format_daemon_result(result) -> str:
+    return (
+        "Roger daemon result\n"
+        f"status: {result.status}\n"
+        f"cycles: {result.cycles}\n"
+        f"dispatched: {result.dispatched}\n"
+    )
+
+
+def _build_voice_loop(args, config: RogerConfig, dependencies: RuntimeDependencies):
+    registry = _registry_from_config(config)
+    wake = dependencies.create_wake_backend(config, force_manual=args.manual_wake)
+    if args.wake_threshold is not None and hasattr(wake, "threshold"):
+        wake.threshold = args.wake_threshold
+    if args.wake_debug and hasattr(wake, "score_callback"):
+        wake.score_callback = _build_wake_score_callback(quiet=args.quiet, min_score=args.wake_debug_min_score)
+    feedback = None if args.quiet else CompositeFeedback([
+        ConsoleFeedback(echo=True, show_waiting=False),
+        SystemFeedback(),
+    ])
+    loop = dependencies.voice_loop_class(
+        registry,
+        wake,
+        dependencies.create_vad_backend(config),
+        dependencies.create_stt_backend(config),
+        dependencies.create_pi_runner(config, registry, offline=args.offline),
+        dependencies.create_tts_speaker(config, no_tts=args.no_tts),
+        preview_action=args.preview_action,
+        feedback=feedback,
+    )
+    return registry, wake, loop
 
 
 def _score_wake_file(wake, audio_path: Path, blocksize: int = 1280) -> dict[str, object]:

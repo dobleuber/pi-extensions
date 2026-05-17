@@ -85,3 +85,10 @@
 - [x] 11.2 Play synthesized TTS audio through the local audio output instead of only generating bytes.
 - [x] 11.3 Add a typed task dispatch CLI for validating real pi-agent execution without speech uncertainty.
 - [x] 11.4 Add documentation and smoke commands for OS feedback, TTS playback, and real task execution.
+
+## 12. Continuous Daemon Mode
+
+- [x] 12.1 Add a `roger daemon` command that continuously runs wake/instruction cycles until interrupted.
+- [x] 12.2 Add `--max-cycles` for deterministic smoke tests and bounded manual verification.
+- [x] 12.3 Add clean daemon interrupt handling and final cycle/dispatch summary.
+- [x] 12.4 Add daemon tests and documentation for real end-to-end operation.

@@ -150,6 +150,26 @@ A real one-cycle run uses the configured wake/VAD/STT/pi/TTS path:
 uv run roger listen-once
 ```
 
+For continuous operation, run Roger as a daemon:
+
+```bash
+uv run roger daemon --no-tts
+```
+
+For the full loop with spoken responses:
+
+```bash
+uv run roger daemon
+```
+
+For bounded testing, stop after one wake/instruction cycle:
+
+```bash
+uv run roger daemon --max-cycles 1 --no-tts
+```
+
+Stop an unbounded daemon with `Ctrl+C`; Roger exits cleanly and prints a cycle/dispatch summary.
+
 For early testing, keep `--no-tts` if you only want textual output. Without `--no-tts`, Roger plays the synthesized Kokoro response through the local audio output.
 
 Roger uses Kokoro local files by default (`speech.tts.local_files_only = true`) and resolves the model from the Hugging Face cache without network calls. If needed, pin explicit paths in `roger.toml`:

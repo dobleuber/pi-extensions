@@ -50,7 +50,7 @@ uv run roger spike tts --dry-run
 Current local test evidence from this implementation session:
 
 ```text
-82 tests passing
+87 tests passing
 OpenSpec validation passing
 uv speech dependency group installed successfully
 NanoWakeWord LSTM model load/listener smoke test passing
@@ -65,4 +65,5 @@ pi RPC `get_state` smoke test returned the configured default model and session 
 `roger task --session current-project --no-tts "..."` supports typed real pi-agent dispatch without speech uncertainty
 Roger sends OS-level `notify-send` feedback when available and plays Kokoro TTS audio through `sounddevice`
 Kokoro TTS defaults to local cached config/model/voice files (`local_files_only = true`) with explicit repo id to avoid implicit HF downloads/warnings
+`roger daemon` runs continuous wake/instruction cycles and supports `--max-cycles` plus clean Ctrl+C summaries
 ```
