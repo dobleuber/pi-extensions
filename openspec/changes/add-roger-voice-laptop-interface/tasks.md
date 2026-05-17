@@ -1,9 +1,9 @@
 ## 1. Project Foundation
 
-- [ ] 1.1 Choose the implementation runtime and create the initial project structure for the Roger daemon/orchestrator.
-- [ ] 1.2 Add dependency and environment management for local audio, speech backends, pi RPC, tests, and benchmark scripts.
-- [ ] 1.3 Add configuration loading for speech backends, model paths, thresholds, session registry, and online/offline model settings.
-- [ ] 1.4 Add a basic CLI entrypoint that can run health checks and individual spikes without starting the full daemon.
+- [x] 1.1 Choose the implementation runtime and create the initial project structure for the Roger daemon/orchestrator.
+- [x] 1.2 Add dependency and environment management for local audio, speech backends, pi RPC, tests, and benchmark scripts.
+- [x] 1.3 Add configuration loading for speech backends, model paths, thresholds, session registry, and online/offline model settings.
+- [x] 1.4 Add a basic CLI entrypoint that can run health checks and individual spikes without starting the full daemon.
 
 ## 2. Wake Word Spike
 
