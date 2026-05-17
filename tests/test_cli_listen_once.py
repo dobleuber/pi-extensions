@@ -1,4 +1,6 @@
+import io
 import unittest
+from contextlib import redirect_stdout
 
 from roger import cli
 
@@ -29,6 +31,15 @@ class FakeSpeaker:
 
 
 class CliListenOnceTests(unittest.TestCase):
+    def test_wake_score_callback_respects_minimum_score(self):
+        callback = cli._build_wake_score_callback(quiet=False, min_score=0.0)
+        output = io.StringIO()
+
+        with redirect_stdout(output):
+            callback(0.01)
+
+        self.assertIn("wake score=0.010", output.getvalue())
+
     def test_listen_once_handles_keyboard_interrupt_without_traceback(self):
         class InterruptingVoiceLoop:
             def __init__(self, *args, **kwargs):

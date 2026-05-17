@@ -155,7 +155,7 @@ For early testing, keep `--no-tts` if you only want textual output.
 If the real wake word appears to hang at `Esperando wake word`, print model scores and lower the threshold for that run:
 
 ```bash
-uv run roger listen-once --no-tts --wake-debug --wake-threshold 0.75
+uv run roger listen-once --no-tts --wake-debug --wake-debug-min-score 0.0 --wake-threshold 0.75
 ```
 
 The default wake threshold is `0.85`, matching the standalone listener script.

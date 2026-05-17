@@ -64,6 +64,7 @@ def build_parser() -> argparse.ArgumentParser:
     listen_once.add_argument("--quiet", action="store_true", help="Suppress live progress messages")
     listen_once.add_argument("--wake-threshold", type=float, default=None, help="Override wake detection threshold for this run")
     listen_once.add_argument("--wake-debug", action="store_true", help="Print NanoWakeWord scores while waiting")
+    listen_once.add_argument("--wake-debug-min-score", type=float, default=0.2, help="Minimum score printed by --wake-debug")
 
     return parser
 
@@ -90,7 +91,7 @@ def run(argv: Sequence[str] | None = None, dependencies: RuntimeDependencies | N
         if args.wake_threshold is not None and hasattr(wake, "threshold"):
             wake.threshold = args.wake_threshold
         if args.wake_debug and hasattr(wake, "score_callback"):
-            wake.score_callback = _build_wake_score_callback(quiet=args.quiet)
+            wake.score_callback = _build_wake_score_callback(quiet=args.quiet, min_score=args.wake_debug_min_score)
         if args.manual_wake and hasattr(wake, "trigger"):
             wake.trigger()
         feedback = None if args.quiet else ConsoleFeedback(echo=True)
@@ -191,9 +192,9 @@ def _create_tts_speaker(config: RogerConfig, no_tts: bool = False):
     return SynthesizingSpeaker(create_tts_backend(config))
 
 
-def _build_wake_score_callback(quiet: bool = False):
+def _build_wake_score_callback(quiet: bool = False, min_score: float = 0.2):
     def callback(score: float) -> None:
-        if not quiet and score >= 0.2:
+        if not quiet and score >= min_score:
             print(f"wake score={score:.3f}", flush=True)
 
     return callback
