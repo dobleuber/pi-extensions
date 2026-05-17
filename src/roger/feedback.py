@@ -13,6 +13,39 @@ class Feedback(Protocol):
     def completed(self, status: str, message: str = "") -> None: ...
 
 
+class CompositeFeedback:
+    def __init__(self, sinks: list[Feedback]):
+        self.sinks = sinks
+
+    def listening_for_wake(self, manual: bool = False) -> None:
+        for sink in self.sinks:
+            sink.listening_for_wake(manual=manual)
+
+    def wake_detected(self, phrase: str, score: float) -> None:
+        for sink in self.sinks:
+            sink.wake_detected(phrase, score)
+
+    def capturing_instruction(self) -> None:
+        for sink in self.sinks:
+            sink.capturing_instruction()
+
+    def transcribing(self) -> None:
+        for sink in self.sinks:
+            sink.transcribing()
+
+    def transcription_ready(self, text: str) -> None:
+        for sink in self.sinks:
+            sink.transcription_ready(text)
+
+    def dispatching(self, session_name: str) -> None:
+        for sink in self.sinks:
+            sink.dispatching(session_name)
+
+    def completed(self, status: str, message: str = "") -> None:
+        for sink in self.sinks:
+            sink.completed(status, message)
+
+
 class ConsoleFeedback:
     def __init__(self, echo: bool = False, show_waiting: bool = True):
         self.echo = echo

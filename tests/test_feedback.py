@@ -1,6 +1,6 @@
 import unittest
 
-from roger.feedback import ConsoleFeedback
+from roger.feedback import CompositeFeedback, ConsoleFeedback
 
 
 class FeedbackTests(unittest.TestCase):
@@ -19,6 +19,16 @@ class FeedbackTests(unittest.TestCase):
         self.assertIn("Escuchando instrucción", output)
         self.assertIn("Transcripción: corre pwd", output)
         self.assertIn("Enviando a pi-agent: current-project", output)
+
+    def test_composite_feedback_forwards_events_to_all_sinks(self):
+        first = ConsoleFeedback()
+        second = ConsoleFeedback()
+        feedback = CompositeFeedback([first, second])
+
+        feedback.wake_detected("hola roger", 0.9)
+
+        self.assertIn("Wake detectado", first.output)
+        self.assertIn("Wake detectado", second.output)
 
 
 if __name__ == "__main__":

@@ -23,12 +23,25 @@ class TtsSpeakerTests(unittest.TestCase):
 
     def test_synthesizing_speaker_calls_backend(self):
         backend = FakeTtsBackend()
-        speaker = SynthesizingSpeaker(backend)
+        speaker = SynthesizingSpeaker(backend, audio_player=lambda speech: None)
 
         speaker.speak("Hola")
 
         self.assertEqual(backend.texts, ["Hola"])
         self.assertEqual(speaker.last_speech.audio, b"audio")
+
+    def test_synthesizing_speaker_plays_generated_audio_when_player_is_available(self):
+        backend = FakeTtsBackend()
+        played = []
+
+        def player(speech):
+            played.append((speech.audio, speech.sample_rate))
+
+        speaker = SynthesizingSpeaker(backend, audio_player=player)
+
+        speaker.speak("Hola")
+
+        self.assertEqual(played, [(b"audio", 24_000)])
 
 
 if __name__ == "__main__":

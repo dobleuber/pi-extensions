@@ -150,7 +150,15 @@ A real one-cycle run uses the configured wake/VAD/STT/pi/TTS path:
 uv run roger listen-once
 ```
 
-For early testing, keep `--no-tts` if you only want textual output.
+For early testing, keep `--no-tts` if you only want textual output. Without `--no-tts`, Roger now plays the synthesized Kokoro response through the local audio output.
+
+To validate real pi-agent execution without microphone/STT uncertainty, use a typed task:
+
+```bash
+uv run roger task --session current-project --no-tts "corre pwd y dime el directorio actual"
+```
+
+For OS-level feedback, Roger sends desktop notifications with `notify-send` when available for wake activation, capture, transcription, dispatch, and completion. Console output remains as a fallback/diagnostic surface.
 
 If the real wake word appears to hang, print model scores and lower the threshold for that run:
 

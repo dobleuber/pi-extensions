@@ -78,3 +78,10 @@
 - [x] 10.3 Run OpenSpec validation for `add-roger-voice-laptop-interface`.
 - [x] 10.4 Run the project test/smoke suite and record the commands used.
 - [x] 10.5 Update the OpenSpec tasks as complete when implementation work is verified.
+
+## 11. Runtime UX and Real Execution Hardening
+
+- [x] 11.1 Add OS-level feedback hooks so Roger can notify the desktop when wake, capture, transcription, dispatch, and completion happen.
+- [x] 11.2 Play synthesized TTS audio through the local audio output instead of only generating bytes.
+- [x] 11.3 Add a typed task dispatch CLI for validating real pi-agent execution without speech uncertainty.
+- [x] 11.4 Add documentation and smoke commands for OS feedback, TTS playback, and real task execution.

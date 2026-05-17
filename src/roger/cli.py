@@ -14,10 +14,13 @@ from roger.benchmarks.wake_nanowakeword import ARCHITECTURES
 from roger.benchmarks.speech import build_stt_plan, build_tts_plan, build_vad_plan
 from roger.backends.factory import create_stt_backend, create_tts_backend, create_vad_backend, create_wake_backend
 from roger.config import RogerConfig
-from roger.feedback import ConsoleFeedback
+from roger.feedback import CompositeFeedback, ConsoleFeedback
+from roger.feedback_system import SystemFeedback
 from roger.pi_rpc.runner import PiAgentRunner
 from roger.pi_rpc.sessions import PiSessionManager
 from roger.routing.registry import SessionEntry, SessionRegistry
+from roger.routing.router import Router
+from roger.summarization import summarize_for_speech
 from roger.tts_speaker import NoopSpeaker, SynthesizingSpeaker
 from roger.voice_loop import VoiceLoop
 
@@ -76,6 +79,14 @@ def build_parser() -> argparse.ArgumentParser:
     wake_file.add_argument("--wake-threshold", type=float, default=None, help="Override wake detection threshold for this run")
     wake_file.add_argument("--blocksize", type=int, default=1280, help="Frames per wake inference chunk")
 
+    task = subcommands.add_parser("task", help="Dispatch a typed task through Roger routing/pi-agent")
+    task.add_argument("instruction", help="Task instruction to send to pi-agent")
+    task.add_argument("--session", choices=("system", "current-project"), default=None, help="Force a Roger session")
+    task.add_argument("--config", type=Path, default=None, help="Path to roger TOML config")
+    task.add_argument("--project-dir", type=Path, default=Path.cwd(), help="Current project directory")
+    task.add_argument("--offline", action="store_true", help="Use offline/Ollama pi-agent mode")
+    task.add_argument("--no-tts", action="store_true", help="Do not synthesize spoken output")
+
     return parser
 
 
@@ -104,7 +115,10 @@ def run(argv: Sequence[str] | None = None, dependencies: RuntimeDependencies | N
             wake.score_callback = _build_wake_score_callback(quiet=args.quiet, min_score=args.wake_debug_min_score)
         if args.manual_wake and hasattr(wake, "trigger"):
             wake.trigger()
-        feedback = None if args.quiet else ConsoleFeedback(echo=True, show_waiting=False)
+        feedback = None if args.quiet else CompositeFeedback([
+            ConsoleFeedback(echo=True, show_waiting=False),
+            SystemFeedback(),
+        ])
         loop = dependencies.voice_loop_class(
             registry,
             wake,
@@ -126,6 +140,10 @@ def run(argv: Sequence[str] | None = None, dependencies: RuntimeDependencies | N
             wake.threshold = args.wake_threshold
         result = _score_wake_file(wake, args.audio, blocksize=args.blocksize)
         return 0, _format_wake_file_result(result)
+    if args.command == "task":
+        registry = _registry_from_config(config)
+        result = _run_typed_task(args, config, registry, dependencies)
+        return 0, _format_task_result(result)
 
     return 2, f"Unsupported command: {args.command}\n"
 
@@ -230,6 +248,38 @@ def _format_wake_file_result(result: dict[str, object]) -> str:
         lines.append(f"threshold: {result['threshold']}")
     if result.get("phrase"):
         lines.append(f"phrase: {result['phrase']}")
+    return "\n".join(lines) + "\n"
+
+
+def _run_typed_task(args, config: RogerConfig, registry: SessionRegistry, dependencies: RuntimeDependencies) -> dict[str, str | bool]:
+    if args.session is None:
+        route = Router(registry).route(args.instruction)
+        if route.needs_clarification:
+            return {"status": "needs_clarification", "session": "", "response": route.question, "dispatched": False}
+        session_name = route.session_name
+    else:
+        session_name = args.session
+    assert session_name is not None
+
+    runner = dependencies.create_pi_runner(config, registry, offline=args.offline)
+    response = runner.run_task(session_name, args.instruction)
+    speaker = dependencies.create_tts_speaker(config, no_tts=args.no_tts)
+    if not args.no_tts:
+        speaker.speak(summarize_for_speech(response))
+    return {"status": "complete", "session": session_name, "response": response, "dispatched": True}
+
+
+def _format_task_result(result: dict[str, str | bool]) -> str:
+    lines = [
+        "Roger task result",
+        f"status: {result['status']}",
+        f"dispatched: {'yes' if result['dispatched'] else 'no'}",
+    ]
+    if result.get("session"):
+        lines.append(f"session: {result['session']}")
+    if result.get("response"):
+        lines.append("response:")
+        lines.append(str(result["response"]))
     return "\n".join(lines) + "\n"
 
 
