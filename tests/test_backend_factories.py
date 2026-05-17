@@ -18,7 +18,10 @@ class BackendFactoryTests(unittest.TestCase):
         self.assertEqual(wake.model_path, config.speech.wake.model_path)
         self.assertEqual(wake.target_phrase, "hola roger")
         self.assertEqual(wake.threshold, config.speech.wake.threshold)
-        self.assertIsInstance(create_vad_backend(config), SileroVadAdapter)
+        vad = create_vad_backend(config)
+        self.assertIsInstance(vad, SileroVadAdapter)
+        self.assertEqual(vad.max_capture_seconds, config.speech.vad.max_capture_seconds)
+        self.assertEqual(vad.min_silence_duration_ms, config.speech.vad.silence_timeout_ms)
         self.assertIsInstance(create_stt_backend(config), FasterWhisperSttAdapter)
         self.assertIsInstance(create_tts_backend(config), KokoroTtsAdapter)
 

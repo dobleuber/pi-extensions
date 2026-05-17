@@ -24,7 +24,10 @@ def create_wake_backend(config: RogerConfig, force_manual: bool = False):
 
 def create_vad_backend(config: RogerConfig):
     if config.speech.vad.backend == "silero":
-        return SileroVadAdapter()
+        return SileroVadAdapter(
+            max_capture_seconds=config.speech.vad.max_capture_seconds,
+            min_silence_duration_ms=config.speech.vad.silence_timeout_ms,
+        )
     raise ValueError(f"Unsupported VAD backend: {config.speech.vad.backend}")
 
 
