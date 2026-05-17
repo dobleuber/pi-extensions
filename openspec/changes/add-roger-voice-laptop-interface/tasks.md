@@ -64,12 +64,12 @@
 
 ## 9. MVP Voice Loop
 
-- [ ] 9.1 Connect wake detection to instruction capture.
-- [ ] 9.2 Connect VAD-based instruction capture to local STT.
-- [ ] 9.3 Connect STT output to transcription preview.
-- [ ] 9.4 Connect accepted preview output to router and pi-agent dispatch.
-- [ ] 9.5 Connect pi-agent final status to local TTS.
-- [ ] 9.6 Ensure Roger handles one instruction per wake activation and returns to wake-word listening after completion or error.
+- [x] 9.1 Connect wake detection to instruction capture.
+- [x] 9.2 Connect VAD-based instruction capture to local STT.
+- [x] 9.3 Connect STT output to transcription preview.
+- [x] 9.4 Connect accepted preview output to router and pi-agent dispatch.
+- [x] 9.5 Connect pi-agent final status to local TTS.
+- [x] 9.6 Ensure Roger handles one instruction per wake activation and returns to wake-word listening after completion or error.
 
 ## 10. Verification and Documentation
 
