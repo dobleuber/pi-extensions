@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import time
+from collections.abc import Callable
 import numpy as np
 
 from roger.backends._optional import ImportModule, OptionalDependencyMixin, default_import_module
@@ -22,6 +23,7 @@ class NanoWakeWordAdapter(OptionalDependencyMixin):
         blocksize: int = 1280,
         device: str | int | None = None,
         duration: float = 0.0,
+        score_callback: Callable[[float], None] | None = None,
     ):
         super().__init__(import_module=import_module)
         self.model_path = Path(model_path)
@@ -32,6 +34,7 @@ class NanoWakeWordAdapter(OptionalDependencyMixin):
         self.blocksize = blocksize
         self.device = device
         self.duration = duration
+        self.score_callback = score_callback
         self._interpreter = None
 
     def listen_once(self) -> WakeDetection | None:
@@ -64,6 +67,8 @@ class NanoWakeWordAdapter(OptionalDependencyMixin):
         result = interpreter.predict(samples, threshold=threshold)
         detected = bool(getattr(result, "detected", False))
         score = float(getattr(result, "score", 0.0))
+        if self.score_callback is not None:
+            self.score_callback(score)
         if not detected:
             return None
         return WakeDetection(phrase=phrase, score=score)

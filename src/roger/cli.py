@@ -62,6 +62,8 @@ def build_parser() -> argparse.ArgumentParser:
     listen_once.add_argument("--offline", action="store_true", help="Use offline/Ollama pi-agent mode")
     listen_once.add_argument("--no-tts", action="store_true", help="Do not synthesize spoken output")
     listen_once.add_argument("--quiet", action="store_true", help="Suppress live progress messages")
+    listen_once.add_argument("--wake-threshold", type=float, default=None, help="Override wake detection threshold for this run")
+    listen_once.add_argument("--wake-debug", action="store_true", help="Print NanoWakeWord scores while waiting")
 
     return parser
 
@@ -85,6 +87,10 @@ def run(argv: Sequence[str] | None = None, dependencies: RuntimeDependencies | N
     if args.command == "listen-once":
         registry = _registry_from_config(config)
         wake = dependencies.create_wake_backend(config, force_manual=args.manual_wake)
+        if args.wake_threshold is not None and hasattr(wake, "threshold"):
+            wake.threshold = args.wake_threshold
+        if args.wake_debug and hasattr(wake, "score_callback"):
+            wake.score_callback = _build_wake_score_callback(quiet=args.quiet)
         if args.manual_wake and hasattr(wake, "trigger"):
             wake.trigger()
         feedback = None if args.quiet else ConsoleFeedback(echo=True)
@@ -100,7 +106,10 @@ def run(argv: Sequence[str] | None = None, dependencies: RuntimeDependencies | N
             preview_action=args.preview_action,
             feedback=feedback,
         )
-        result = loop.run_once()
+        try:
+            result = loop.run_once()
+        except KeyboardInterrupt:
+            return 130, "Roger interrumpido por el usuario\n"
         return 0, _format_listen_once_result(result)
 
     return 2, f"Unsupported command: {args.command}\n"
@@ -118,6 +127,7 @@ def _format_health(config) -> str:
         "Roger health",
         f"wake: {config.speech.wake.backend}",
         f"target: {config.speech.wake.target_phrase}",
+        f"wake threshold: {config.speech.wake.threshold}",
         f"wake architectures: {', '.join(config.speech.wake.architectures)}",
         f"vad: {config.speech.vad.backend}",
         f"stt: {config.speech.stt.backend}",
@@ -179,6 +189,14 @@ def _create_tts_speaker(config: RogerConfig, no_tts: bool = False):
     if no_tts:
         return NoopSpeaker()
     return SynthesizingSpeaker(create_tts_backend(config))
+
+
+def _build_wake_score_callback(quiet: bool = False):
+    def callback(score: float) -> None:
+        if not quiet and score >= 0.2:
+            print(f"wake score={score:.3f}", flush=True)
+
+    return callback
 
 
 if __name__ == "__main__":

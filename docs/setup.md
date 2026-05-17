@@ -152,6 +152,15 @@ uv run roger listen-once
 
 For early testing, keep `--no-tts` if you only want textual output.
 
+If the real wake word appears to hang at `Esperando wake word`, print model scores and lower the threshold for that run:
+
+```bash
+uv run roger listen-once --no-tts --wake-debug --wake-threshold 0.75
+```
+
+The default wake threshold is `0.85`, matching the standalone listener script.
+Pressing `Ctrl+C` exits cleanly without a traceback.
+
 ## pi-agent RPC
 
 Roger uses pi RPC as the first integration path:

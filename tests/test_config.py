@@ -12,6 +12,7 @@ class RogerConfigTests(unittest.TestCase):
 
         self.assertEqual(config.speech.wake.backend, "nanowakeword")
         self.assertEqual(config.speech.wake.target_phrase, "hola roger")
+        self.assertEqual(config.speech.wake.threshold, 0.85)
         self.assertEqual(config.speech.wake.architectures, ["gru", "lstm", "tcn"])
         self.assertEqual(
             config.speech.wake.model_path,

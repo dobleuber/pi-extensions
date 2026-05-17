@@ -38,6 +38,35 @@ class RealAdapterBehaviorTests(unittest.TestCase):
         self.assertEqual(detection.score, 0.97)
         self.assertEqual(adapter._interpreter.threshold, {"hola_roger_lstm": 0.85})
 
+    def test_nanowakeword_reports_scores_even_below_detection_threshold(self):
+        class Result:
+            detected = False
+            score = 0.42
+
+        class Interpreter:
+            model_name = "hola_roger_lstm"
+
+            @classmethod
+            def load_model(cls, model):
+                return cls()
+
+            def predict(self, chunk, threshold=None):
+                return Result()
+
+        scores = []
+        module = types.SimpleNamespace(NanoInterpreter=Interpreter)
+        adapter = NanoWakeWordAdapter(
+            "model.onnx",
+            import_module=lambda _: module,
+            threshold=0.85,
+            score_callback=scores.append,
+        )
+
+        detection = adapter.predict_chunk(b"\x00\x00" * 512)
+
+        self.assertIsNone(detection)
+        self.assertEqual(scores, [0.42])
+
     def test_nanowakeword_listen_once_reads_microphone_until_detection(self):
         import numpy as np
 
