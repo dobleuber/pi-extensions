@@ -3,8 +3,10 @@ from __future__ import annotations
 import argparse
 from dataclasses import dataclass
 from pathlib import Path
-import time
+import wave
 from typing import Callable, Sequence, Type
+
+import numpy as np
 
 from roger.config import load_config
 from roger.benchmarks.wake_nanowakeword import write_training_configs
@@ -67,6 +69,13 @@ def build_parser() -> argparse.ArgumentParser:
     listen_once.add_argument("--wake-debug", action="store_true", help="Print NanoWakeWord scores while waiting")
     listen_once.add_argument("--wake-debug-min-score", type=float, default=0.2, help="Minimum score printed by --wake-debug")
 
+    wake_file = subcommands.add_parser("wake-file", help="Score a recorded WAV file with the configured wake adapter")
+    wake_file.add_argument("audio", type=Path, help="16 kHz mono PCM WAV containing the wake phrase")
+    wake_file.add_argument("--config", type=Path, default=None, help="Path to roger TOML config")
+    wake_file.add_argument("--project-dir", type=Path, default=Path.cwd(), help="Current project directory")
+    wake_file.add_argument("--wake-threshold", type=float, default=None, help="Override wake detection threshold for this run")
+    wake_file.add_argument("--blocksize", type=int, default=1280, help="Frames per wake inference chunk")
+
     return parser
 
 
@@ -88,19 +97,14 @@ def run(argv: Sequence[str] | None = None, dependencies: RuntimeDependencies | N
         return 0, _format_spike(args.spike, mode)
     if args.command == "listen-once":
         registry = _registry_from_config(config)
-        if not args.quiet:
-            print("Inicializando Roger...", flush=True)
         wake = dependencies.create_wake_backend(config, force_manual=args.manual_wake)
         if args.wake_threshold is not None and hasattr(wake, "threshold"):
             wake.threshold = args.wake_threshold
-        if hasattr(wake, "score_callback"):
-            min_score = args.wake_debug_min_score if args.wake_debug else 1.1
-            wake.score_callback = _build_wake_score_callback(quiet=args.quiet, min_score=min_score)
+        if args.wake_debug and hasattr(wake, "score_callback"):
+            wake.score_callback = _build_wake_score_callback(quiet=args.quiet, min_score=args.wake_debug_min_score)
         if args.manual_wake and hasattr(wake, "trigger"):
             wake.trigger()
-        feedback = None if args.quiet else ConsoleFeedback(echo=True)
-        if args.manual_wake and feedback is not None:
-            feedback.listening_for_wake(manual=True)
+        feedback = None if args.quiet else ConsoleFeedback(echo=True, show_waiting=False)
         loop = dependencies.voice_loop_class(
             registry,
             wake,
@@ -116,6 +120,12 @@ def run(argv: Sequence[str] | None = None, dependencies: RuntimeDependencies | N
         except KeyboardInterrupt:
             return 130, "Roger interrumpido por el usuario\n"
         return 0, _format_listen_once_result(result)
+    if args.command == "wake-file":
+        wake = dependencies.create_wake_backend(config, force_manual=False)
+        if args.wake_threshold is not None and hasattr(wake, "threshold"):
+            wake.threshold = args.wake_threshold
+        result = _score_wake_file(wake, args.audio, blocksize=args.blocksize)
+        return 0, _format_wake_file_result(result)
 
     return 2, f"Unsupported command: {args.command}\n"
 
@@ -172,6 +182,57 @@ def _format_listen_once_result(result) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _score_wake_file(wake, audio_path: Path, blocksize: int = 1280) -> dict[str, object]:
+    scores: list[float] = []
+    detections = []
+    previous_callback = getattr(wake, "score_callback", None)
+
+    def collect_score(score: float) -> None:
+        scores.append(score)
+        if previous_callback is not None:
+            previous_callback(score)
+
+    if hasattr(wake, "score_callback"):
+        wake.score_callback = collect_score
+
+    with wave.open(str(audio_path), "rb") as wav:
+        if wav.getsampwidth() != 2:
+            raise ValueError("wake-file expects 16-bit PCM WAV")
+        if wav.getnchannels() != 1:
+            raise ValueError("wake-file expects mono WAV")
+        while True:
+            frames = wav.readframes(blocksize)
+            if not frames:
+                break
+            samples = np.frombuffer(frames, dtype=np.int16)
+            detection = wake.predict_samples(samples)
+            if detection is not None:
+                detections.append(detection)
+
+    max_score = max(scores) if scores else 0.0
+    best_detection = max(detections, key=lambda item: item.score) if detections else None
+    return {
+        "detected": best_detection is not None,
+        "max_score": max_score,
+        "phrase": best_detection.phrase if best_detection is not None else "",
+        "threshold": getattr(wake, "threshold", None),
+    }
+
+
+def _format_wake_file_result(result: dict[str, object]) -> str:
+    detected = "yes" if result["detected"] else "no"
+    lines = [
+        "Roger wake-file result",
+        f"detected: {detected}",
+        f"max score: {result['max_score']:.3f}",
+    ]
+    if result.get("threshold") is not None:
+        lines.append(f"threshold: {result['threshold']}")
+    if result.get("phrase"):
+        lines.append(f"phrase: {result['phrase']}")
+    return "\n".join(lines) + "\n"
+
+
 def _registry_from_config(config: RogerConfig) -> SessionRegistry:
     return SessionRegistry(
         {
@@ -196,25 +257,10 @@ def _create_tts_speaker(config: RogerConfig, no_tts: bool = False):
     return SynthesizingSpeaker(create_tts_backend(config))
 
 
-def _build_wake_score_callback(
-    quiet: bool = False,
-    min_score: float = 0.2,
-    heartbeat_seconds: float = 2.0,
-    monotonic: Callable[[], float] = time.monotonic,
-):
-    last_heartbeat = {"value": monotonic()}
-
+def _build_wake_score_callback(quiet: bool = False, min_score: float = 0.2):
     def callback(score: float) -> None:
-        if quiet:
-            return
-        now = monotonic()
-        if score >= min_score:
+        if not quiet and score >= min_score:
             print(f"wake score={score:.3f}", flush=True)
-            last_heartbeat["value"] = now
-            return
-        if heartbeat_seconds > 0 and now - last_heartbeat["value"] >= heartbeat_seconds:
-            print("Escuchando wake word...", flush=True)
-            last_heartbeat["value"] = now
 
     return callback
 

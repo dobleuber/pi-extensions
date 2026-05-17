@@ -142,7 +142,7 @@ A safe CLI smoke test that does not dispatch to pi-agent:
 uv run roger listen-once --manual-wake --preview-action cancel --no-tts
 ```
 
-This should now print live feedback for each phase: initialization, wake waiting heartbeat, wake detected, listening for instruction, transcribing, transcription text, and final result.
+This prints feedback only after wake activation, then instruction capture, transcription text, and final result. While waiting for the real wake word it stays quiet by default.
 
 A real one-cycle run uses the configured wake/VAD/STT/pi/TTS path:
 
@@ -152,14 +152,21 @@ uv run roger listen-once
 
 For early testing, keep `--no-tts` if you only want textual output.
 
-If the real wake word appears to hang at `Esperando wake word`, print model scores and lower the threshold for that run:
+If the real wake word appears to hang, print model scores and lower the threshold for that run:
 
 ```bash
 uv run roger listen-once --no-tts --wake-debug --wake-debug-min-score 0.0 --wake-threshold 0.75
 ```
 
-The default wake threshold is `0.85`, matching the standalone listener script.
+The default wake threshold is `0.85`, matching the standalone listener script. Roger also detects by `score >= threshold`, matching that script's detection rule.
 Pressing `Ctrl+C` exits cleanly without a traceback.
+
+To debug with a recording instead of live microphone input:
+
+```bash
+arecord -f S16_LE -r 16000 -c 1 -d 3 /tmp/hola-roger.wav
+uv run roger wake-file /tmp/hola-roger.wav --wake-threshold 0.85
+```
 
 ## pi-agent RPC
 

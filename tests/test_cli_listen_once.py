@@ -1,6 +1,9 @@
 import io
+import tempfile
+import wave
 import unittest
 from contextlib import redirect_stdout
+from pathlib import Path
 
 from roger import cli
 
@@ -40,22 +43,14 @@ class CliListenOnceTests(unittest.TestCase):
 
         self.assertIn("wake score=0.010", output.getvalue())
 
-    def test_wake_score_callback_prints_periodic_heartbeat(self):
-        now = iter([0.0, 0.0, 0.5, 2.1])
-        callback = cli._build_wake_score_callback(
-            quiet=False,
-            min_score=1.1,
-            heartbeat_seconds=2.0,
-            monotonic=lambda: next(now),
-        )
+    def test_wake_score_callback_ignores_scores_below_minimum(self):
+        callback = cli._build_wake_score_callback(quiet=False, min_score=0.2)
         output = io.StringIO()
 
         with redirect_stdout(output):
-            callback(0.0)
-            callback(0.0)
-            callback(0.0)
+            callback(0.01)
 
-        self.assertIn("Escuchando wake word", output.getvalue())
+        self.assertEqual(output.getvalue(), "")
 
     def test_listen_once_handles_keyboard_interrupt_without_traceback(self):
         class InterruptingVoiceLoop:
@@ -109,7 +104,7 @@ class CliListenOnceTests(unittest.TestCase):
         self.assertIn("dispatched: yes", output)
         self.assertIn("Hecho", output)
 
-    def test_listen_once_prints_initialization_feedback_before_waiting(self):
+    def test_listen_once_does_not_print_unsolicited_waiting_feedback(self):
         class FakeVoiceLoop:
             def __init__(self, *args, **kwargs):
                 pass
@@ -135,7 +130,44 @@ class CliListenOnceTests(unittest.TestCase):
                 ),
             )
 
-        self.assertIn("Inicializando Roger", stdout.getvalue())
+        self.assertEqual(stdout.getvalue(), "")
+
+    def test_wake_file_scores_recorded_audio_with_same_adapter(self):
+        class FileWake:
+            def __init__(self):
+                self.threshold = 0.85
+                self.calls = 0
+                self.score_callback = None
+
+            def predict_samples(self, samples):
+                self.calls += 1
+                score = 0.91 if self.calls == 2 else 0.1
+                if self.score_callback is not None:
+                    self.score_callback(score)
+                if score >= self.threshold:
+                    from roger.backends.interfaces import WakeDetection
+
+                    return WakeDetection("hola roger", score)
+                return None
+
+        with tempfile.TemporaryDirectory() as tmp:
+            wav_path = Path(tmp) / "hola.wav"
+            with wave.open(str(wav_path), "wb") as wav:
+                wav.setnchannels(1)
+                wav.setsampwidth(2)
+                wav.setframerate(16_000)
+                wav.writeframes(b"\x00\x00" * 2560)
+
+            exit_code, output = cli.run(
+                ["wake-file", str(wav_path)],
+                dependencies=cli.RuntimeDependencies(
+                    create_wake_backend=lambda config, force_manual=False: FileWake(),
+                ),
+            )
+
+        self.assertEqual(exit_code, 0)
+        self.assertIn("detected: yes", output)
+        self.assertIn("max score: 0.910", output)
 
     def test_listen_once_supports_manual_wake_and_cancel_preview(self):
         captured = {}

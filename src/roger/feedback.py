@@ -14,8 +14,9 @@ class Feedback(Protocol):
 
 
 class ConsoleFeedback:
-    def __init__(self, echo: bool = False):
+    def __init__(self, echo: bool = False, show_waiting: bool = True):
         self.echo = echo
+        self.show_waiting = show_waiting
         self.lines: list[str] = []
 
     @property
@@ -23,6 +24,8 @@ class ConsoleFeedback:
         return "\n".join(self.lines)
 
     def listening_for_wake(self, manual: bool = False) -> None:
+        if not self.show_waiting:
+            return
         if manual:
             self._write("Manual wake activado. Escuchando instrucción...")
         else:

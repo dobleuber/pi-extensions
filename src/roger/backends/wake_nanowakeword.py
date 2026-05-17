@@ -65,10 +65,10 @@ class NanoWakeWordAdapter(OptionalDependencyMixin):
         phrase = self.target_phrase if target_phrase is None else target_phrase
         threshold = {interpreter.model_name: self.threshold} if hasattr(interpreter, "model_name") else {}
         result = interpreter.predict(samples, threshold=threshold)
-        detected = bool(getattr(result, "detected", False))
         score = float(getattr(result, "score", 0.0))
         if self.score_callback is not None:
             self.score_callback(score)
+        detected = bool(getattr(result, "detected", False)) or score >= self.threshold
         if not detected:
             return None
         return WakeDetection(phrase=phrase, score=score)
