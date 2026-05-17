@@ -50,6 +50,7 @@ uv run roger spike tts --dry-run
 Current local test evidence from this implementation session:
 
 ```text
-37 tests passing
+43 tests passing
 OpenSpec validation passing
+uv speech dependency group installed successfully
 ```
