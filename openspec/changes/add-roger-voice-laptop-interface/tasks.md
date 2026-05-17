@@ -13,7 +13,7 @@
 - [x] 2.4 Train or document reproducible training for NanoWakeWord LSTM.
 - [x] 2.5 Train or document reproducible training for NanoWakeWord TCN.
 - [x] 2.6 Build a benchmark harness that measures false positives, false negatives, activation latency, idle CPU, memory usage, and training effort for GRU, LSTM, and TCN.
-- [ ] 2.7 Select the default wake architecture or record why a fallback trigger/openWakeWord baseline is required.
+- [x] 2.7 Select the default wake architecture or record why a fallback trigger/openWakeWord baseline is required.
 
 ## 3. Speech Backend Spikes
 
@@ -73,8 +73,8 @@
 
 ## 10. Verification and Documentation
 
-- [ ] 10.1 Document setup steps for local wake-word, VAD, STT, TTS, pi RPC, and Ollama fallback.
-- [ ] 10.2 Document benchmark results and selected defaults.
-- [ ] 10.3 Run OpenSpec validation for `add-roger-voice-laptop-interface`.
-- [ ] 10.4 Run the project test/smoke suite and record the commands used.
-- [ ] 10.5 Update the OpenSpec tasks as complete when implementation work is verified.
+- [x] 10.1 Document setup steps for local wake-word, VAD, STT, TTS, pi RPC, and Ollama fallback.
+- [x] 10.2 Document benchmark results and selected defaults.
+- [x] 10.3 Run OpenSpec validation for `add-roger-voice-laptop-interface`.
+- [x] 10.4 Run the project test/smoke suite and record the commands used.
+- [x] 10.5 Update the OpenSpec tasks as complete when implementation work is verified.
