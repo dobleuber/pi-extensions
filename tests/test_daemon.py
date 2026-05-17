@@ -52,6 +52,15 @@ class RogerDaemonTests(unittest.TestCase):
         self.assertEqual(result.cycles, 1)
         self.assertEqual(result.dispatched, 1)
 
+    def test_daemon_holds_result_between_cycles(self):
+        loop = FakeLoop([Result(dispatched=True), Result(dispatched=False)])
+        sleeps = []
+        daemon = RogerDaemon(loop=loop, sleep=sleeps.append)
+
+        daemon.run(max_cycles=2, result_hold_seconds=8)
+
+        self.assertEqual(sleeps, [8, 8])
+
 
 if __name__ == "__main__":
     unittest.main()

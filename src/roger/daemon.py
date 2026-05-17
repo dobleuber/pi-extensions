@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import time
 from typing import Callable, Protocol
 
 
@@ -16,11 +17,17 @@ class DaemonResult:
 
 
 class RogerDaemon:
-    def __init__(self, loop: Loop, before_cycle: Callable[[], None] | None = None):
+    def __init__(
+        self,
+        loop: Loop,
+        before_cycle: Callable[[], None] | None = None,
+        sleep: Callable[[float], None] = time.sleep,
+    ):
         self.loop = loop
         self.before_cycle = before_cycle
+        self.sleep = sleep
 
-    def run(self, max_cycles: int | None = None) -> DaemonResult:
+    def run(self, max_cycles: int | None = None, result_hold_seconds: float = 0.0) -> DaemonResult:
         cycles = 0
         dispatched = 0
         try:
@@ -31,6 +38,8 @@ class RogerDaemon:
                 cycles += 1
                 if getattr(result, "dispatched", False):
                     dispatched += 1
+                if result_hold_seconds > 0:
+                    self.sleep(result_hold_seconds)
         except KeyboardInterrupt:
             return DaemonResult(status="interrupted", cycles=cycles, dispatched=dispatched)
         return DaemonResult(status="complete", cycles=cycles, dispatched=dispatched)

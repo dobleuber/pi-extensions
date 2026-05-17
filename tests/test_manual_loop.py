@@ -50,16 +50,28 @@ class ManualLoopTests(unittest.TestCase):
 
     def test_manual_loop_does_not_dispatch_cancelled_preview(self):
         pi = FakePiRunner()
-        loop = ManualLoop(SessionRegistry.default(project_dir=Path("/tmp/project")), pi_runner=pi, tts=FakeTts())
+        tts = FakeTts()
+        loop = ManualLoop(SessionRegistry.default(project_dir=Path("/tmp/project")), pi_runner=pi, tts=tts)
 
         result = loop.run_transcription("instala steam", preview_action="cancel")
 
         self.assertFalse(result.dispatched)
         self.assertEqual(pi.calls, [])
         self.assertEqual(result.status, "cancelled")
+        self.assertEqual(tts.spoken, ["Preview cancelled"])
+
+    def test_manual_loop_speaks_clarification_questions(self):
+        tts = FakeTts()
+        loop = ManualLoop(SessionRegistry.default(project_dir=Path("/tmp/project")), pi_runner=FakePiRunner(), tts=tts)
+
+        result = loop.run_transcription("haz eso")
+
+        self.assertEqual(result.status, "needs_clarification")
+        self.assertEqual(tts.spoken, [result.message])
 
     def test_manual_loop_reports_pi_failure(self):
-        loop = ManualLoop(SessionRegistry.default(project_dir=Path("/tmp/project")), pi_runner=FakePiRunner(fail=True), tts=FakeTts())
+        tts = FakeTts()
+        loop = ManualLoop(SessionRegistry.default(project_dir=Path("/tmp/project")), pi_runner=FakePiRunner(fail=True), tts=tts)
 
         result = loop.run_transcription("instala steam")
 
@@ -67,6 +79,7 @@ class ManualLoopTests(unittest.TestCase):
         self.assertEqual(result.session_name, "system")
         self.assertEqual(result.status, "failed")
         self.assertIn("pi unavailable", result.message)
+        self.assertEqual(tts.spoken, ["pi unavailable"])
 
 
 if __name__ == "__main__":

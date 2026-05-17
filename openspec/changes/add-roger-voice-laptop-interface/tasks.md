@@ -101,3 +101,5 @@
 - [x] 13.4 Add an `overlay-demo` command for manual visual verification without voice/pi execution.
 - [x] 13.5 Keep transcript and result visible in the overlay throughout execution instead of replacing them with transient status messages.
 - [x] 13.6 Add an isolated `roger say` command for local TTS/audio playback verification.
+- [x] 13.7 Hold daemon results long enough to read before listening for the next wake cycle.
+- [x] 13.8 Speak clarification and failure outcomes, not only successful pi-agent responses.

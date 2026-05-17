@@ -38,10 +38,12 @@ class ManualLoop:
         action = PreviewAction(preview_action)
         decision = self.preview.review(transcription, action=action)
         if not decision.accepted:
+            self.tts.speak("Preview cancelled")
             return ManualLoopResult(status="cancelled", dispatched=False, session_name=None, message="Preview cancelled")
 
         route = self.router.route(decision.text)
         if route.needs_clarification:
+            self.tts.speak(route.question)
             return ManualLoopResult(status="needs_clarification", dispatched=False, session_name=None, message=route.question)
 
         if self.feedback is not None:
@@ -50,6 +52,7 @@ class ManualLoop:
         try:
             response = self.pi_runner.run_task(route.session_name, decision.text)
         except Exception as error:  # pi-agent failures should surface without crashing the loop
+            self.tts.speak(str(error))
             return ManualLoopResult(status="failed", dispatched=False, session_name=route.session_name, message=str(error))
 
         summary = summarize_for_speech(response)

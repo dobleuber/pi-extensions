@@ -184,7 +184,7 @@ Disable the overlay with `--no-overlay` if needed:
 uv run roger daemon --no-overlay --no-tts
 ```
 
-Stop an unbounded daemon with `Ctrl+C`; Roger exits cleanly and prints a cycle/dispatch summary.
+Stop an unbounded daemon with `Ctrl+C`; Roger exits cleanly and prints a cycle/dispatch summary. After each cycle, the daemon waits `--result-hold-seconds` (default `10`) before accepting the next wake so the overlay result remains readable.
 
 For early testing, keep `--no-tts` if you only want textual output. Without `--no-tts`, Roger plays the synthesized Kokoro response through the local audio output.
 

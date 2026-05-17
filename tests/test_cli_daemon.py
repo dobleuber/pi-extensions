@@ -44,7 +44,7 @@ class CliDaemonTests(unittest.TestCase):
                 return type("Result", (), {"dispatched": True})()
 
         exit_code, output = cli.run(
-            ["daemon", "--max-cycles", "2", "--no-tts", "--quiet"],
+            ["daemon", "--max-cycles", "2", "--result-hold-seconds", "0", "--no-tts", "--quiet"],
             dependencies=cli.RuntimeDependencies(
                 create_wake_backend=lambda config, force_manual=False: FakeWake(),
                 create_vad_backend=lambda config: FakeVad(),
@@ -61,6 +61,13 @@ class CliDaemonTests(unittest.TestCase):
         self.assertIn("cycles: 2", output)
         self.assertIn("dispatched: 2", output)
 
+    def test_daemon_defaults_to_result_hold(self):
+        parser = cli.build_parser()
+
+        args = parser.parse_args(["daemon"])
+
+        self.assertGreaterEqual(args.result_hold_seconds, 8)
+
     def test_daemon_manual_wake_triggers_each_cycle(self):
         wake = FakeWake()
 
@@ -72,7 +79,7 @@ class CliDaemonTests(unittest.TestCase):
                 return type("Result", (), {"dispatched": False})()
 
         exit_code, output = cli.run(
-            ["daemon", "--manual-wake", "--max-cycles", "3", "--no-tts", "--quiet"],
+            ["daemon", "--manual-wake", "--max-cycles", "3", "--result-hold-seconds", "0", "--no-tts", "--quiet"],
             dependencies=cli.RuntimeDependencies(
                 create_wake_backend=lambda config, force_manual=False: wake,
                 create_vad_backend=lambda config: FakeVad(),
@@ -99,7 +106,7 @@ class CliDaemonTests(unittest.TestCase):
                 return type("Result", (), {"dispatched": False})()
 
         cli.run(
-            ["daemon", "--max-cycles", "1", "--no-tts"],
+            ["daemon", "--max-cycles", "1", "--result-hold-seconds", "0", "--no-tts"],
             dependencies=cli.RuntimeDependencies(
                 create_wake_backend=lambda config, force_manual=False: FakeWake(),
                 create_vad_backend=lambda config: FakeVad(),
@@ -124,7 +131,7 @@ class CliDaemonTests(unittest.TestCase):
                 return type("Result", (), {"dispatched": False})()
 
         cli.run(
-            ["daemon", "--max-cycles", "1", "--no-tts"],
+            ["daemon", "--max-cycles", "1", "--result-hold-seconds", "0", "--no-tts"],
             dependencies=cli.RuntimeDependencies(
                 create_wake_backend=lambda config, force_manual=False: FakeWake(),
                 create_vad_backend=lambda config: FakeVad(),
@@ -149,7 +156,7 @@ class CliDaemonTests(unittest.TestCase):
                 return type("Result", (), {"dispatched": False})()
 
         cli.run(
-            ["daemon", "--max-cycles", "1", "--no-tts", "--desktop-notifications"],
+            ["daemon", "--max-cycles", "1", "--result-hold-seconds", "0", "--no-tts", "--desktop-notifications"],
             dependencies=cli.RuntimeDependencies(
                 create_wake_backend=lambda config, force_manual=False: FakeWake(),
                 create_vad_backend=lambda config: FakeVad(),
