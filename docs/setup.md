@@ -97,6 +97,43 @@ Dry-run the TTS spike:
 PYTHONPATH=src python3 -m roger.cli spike tts --dry-run
 ```
 
+## Optional backend smoke checks
+
+Silero VAD silence check:
+
+```bash
+uv run python - <<'PY'
+from roger.backends.interfaces import AudioSegment
+from roger.backends.vad_silero import SileroVadAdapter
+print(SileroVadAdapter().detect_speech(AudioSegment(pcm16=b'\\x00\\x00' * 16000)))
+PY
+```
+
+faster-whisper tiny silence check:
+
+```bash
+uv run python - <<'PY'
+import tempfile, wave
+from pathlib import Path
+from roger.backends.interfaces import AudioSegment
+from roger.backends.stt_faster_whisper import FasterWhisperSttAdapter
+path = Path(tempfile.gettempdir()) / 'roger_silence.wav'
+with wave.open(str(path), 'wb') as w:
+    w.setnchannels(1); w.setsampwidth(2); w.setframerate(16000); w.writeframes(b'\\x00\\x00' * 16000)
+print(repr(FasterWhisperSttAdapter(model='tiny').transcribe(AudioSegment(path=path)).text))
+PY
+```
+
+Kokoro Spanish synthesis check:
+
+```bash
+uv run python - <<'PY'
+from roger.backends.tts_kokoro import KokoroTtsAdapter
+speech = KokoroTtsAdapter(voice='ef_dora').synthesize('Hola Roger.')
+print(len(speech.audio or b''), speech.sample_rate)
+PY
+```
+
 ## pi-agent RPC
 
 Roger uses pi RPC as the first integration path:
