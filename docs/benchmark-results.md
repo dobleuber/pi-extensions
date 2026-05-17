@@ -50,7 +50,7 @@ uv run roger spike tts --dry-run
 Current local test evidence from this implementation session:
 
 ```text
-60 tests passing
+64 tests passing
 OpenSpec validation passing
 uv speech dependency group installed successfully
 NanoWakeWord LSTM model load/listener smoke test passing
@@ -59,4 +59,5 @@ Silero VAD silence smoke test returns no speech timestamps
 faster-whisper tiny silence transcription smoke test returns empty text
 Kokoro `ef_dora` Spanish synthesis smoke test produced audio bytes at 24 kHz
 pi RPC `get_state` smoke test returned the configured default model and session state
+`roger listen-once --manual-wake --preview-action cancel --no-tts` smoke test passed without dispatching
 ```

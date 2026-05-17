@@ -134,6 +134,22 @@ print(len(speech.audio or b''), speech.sample_rate)
 PY
 ```
 
+## One-cycle CLI
+
+A safe CLI smoke test that does not dispatch to pi-agent:
+
+```bash
+uv run roger listen-once --manual-wake --preview-action cancel --no-tts
+```
+
+A real one-cycle run uses the configured wake/VAD/STT/pi/TTS path:
+
+```bash
+uv run roger listen-once
+```
+
+For early testing, keep `--no-tts` if you only want textual output.
+
 ## pi-agent RPC
 
 Roger uses pi RPC as the first integration path:

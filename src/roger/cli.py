@@ -1,16 +1,40 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Sequence
+from typing import Callable, Sequence, Type
 
 from roger.config import load_config
 from roger.benchmarks.wake_nanowakeword import write_training_configs
 from roger.benchmarks.wake_nanowakeword import ARCHITECTURES
 from roger.benchmarks.speech import build_stt_plan, build_tts_plan, build_vad_plan
+from roger.backends.factory import create_stt_backend, create_tts_backend, create_vad_backend, create_wake_backend
+from roger.config import RogerConfig
+from roger.pi_rpc.runner import PiAgentRunner
+from roger.pi_rpc.sessions import PiSessionManager
+from roger.routing.registry import SessionEntry, SessionRegistry
+from roger.tts_speaker import NoopSpeaker, SynthesizingSpeaker
+from roger.voice_loop import VoiceLoop
 
 
 SPIKES = ("wake", "vad", "stt", "tts")
+
+
+@dataclass(frozen=True)
+class RuntimeDependencies:
+    create_wake_backend: Callable = create_wake_backend
+    create_vad_backend: Callable = create_vad_backend
+    create_stt_backend: Callable = create_stt_backend
+    create_pi_runner: Callable = None
+    create_tts_speaker: Callable = None
+    voice_loop_class: Type = VoiceLoop
+
+    def __post_init__(self):
+        if self.create_pi_runner is None:
+            object.__setattr__(self, "create_pi_runner", _create_pi_runner)
+        if self.create_tts_speaker is None:
+            object.__setattr__(self, "create_tts_speaker", _create_tts_speaker)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -29,12 +53,21 @@ def build_parser() -> argparse.ArgumentParser:
     spike.add_argument("--config", type=Path, default=None, help="Path to roger TOML config")
     spike.add_argument("--project-dir", type=Path, default=Path.cwd(), help="Current project directory")
 
+    listen_once = subcommands.add_parser("listen-once", help="Run one wake/capture/transcribe/dispatch cycle")
+    listen_once.add_argument("--config", type=Path, default=None, help="Path to roger TOML config")
+    listen_once.add_argument("--project-dir", type=Path, default=Path.cwd(), help="Current project directory")
+    listen_once.add_argument("--manual-wake", action="store_true", help="Use and trigger the manual wake adapter")
+    listen_once.add_argument("--preview-action", choices=("accept", "cancel", "timeout"), default="accept")
+    listen_once.add_argument("--offline", action="store_true", help="Use offline/Ollama pi-agent mode")
+    listen_once.add_argument("--no-tts", action="store_true", help="Do not synthesize spoken output")
+
     return parser
 
 
-def run(argv: Sequence[str] | None = None) -> tuple[int, str]:
+def run(argv: Sequence[str] | None = None, dependencies: RuntimeDependencies | None = None) -> tuple[int, str]:
     parser = build_parser()
     args = parser.parse_args(argv)
+    dependencies = dependencies or RuntimeDependencies()
 
     config = load_config(args.config, project_dir=args.project_dir)
 
@@ -47,6 +80,22 @@ def run(argv: Sequence[str] | None = None) -> tuple[int, str]:
             return 0, f"wake spike: wrote {len(paths)} NanoWakeWord configs\n{path_list}\n"
         mode = "dry-run" if args.dry_run else "run"
         return 0, _format_spike(args.spike, mode)
+    if args.command == "listen-once":
+        registry = _registry_from_config(config)
+        wake = dependencies.create_wake_backend(config, force_manual=args.manual_wake)
+        if args.manual_wake and hasattr(wake, "trigger"):
+            wake.trigger()
+        loop = dependencies.voice_loop_class(
+            registry,
+            wake,
+            dependencies.create_vad_backend(config),
+            dependencies.create_stt_backend(config),
+            dependencies.create_pi_runner(config, registry, offline=args.offline),
+            dependencies.create_tts_speaker(config, no_tts=args.no_tts),
+            preview_action=args.preview_action,
+        )
+        result = loop.run_once()
+        return 0, _format_listen_once_result(result)
 
     return 2, f"Unsupported command: {args.command}\n"
 
@@ -88,6 +137,42 @@ def _format_spike(spike: str, mode: str) -> str:
         candidates = []
     suffix = f"candidates: {', '.join(candidates)}" if candidates else "candidates: none"
     return f"{spike} spike ({mode})\n{suffix}\n"
+
+
+def _format_listen_once_result(result) -> str:
+    dispatched = "yes" if result.dispatched else "no"
+    lines = [
+        "Roger listen-once result",
+        f"status: {result.status}",
+        f"dispatched: {dispatched}",
+    ]
+    if result.message:
+        lines.append(f"message: {result.message}")
+    return "\n".join(lines) + "\n"
+
+
+def _registry_from_config(config: RogerConfig) -> SessionRegistry:
+    return SessionRegistry(
+        {
+            name: SessionEntry(name=name, cwd=session.cwd, description=session.description)
+            for name, session in config.sessions.items()
+        }
+    )
+
+
+def _create_pi_runner(config: RogerConfig, registry: SessionRegistry, offline: bool = False) -> PiAgentRunner:
+    session_manager = PiSessionManager(
+        registry=registry,
+        session_dir=Path(".roger/pi-sessions"),
+        ollama_model=config.models.offline.model,
+    )
+    return PiAgentRunner(session_manager=session_manager, offline=offline)
+
+
+def _create_tts_speaker(config: RogerConfig, no_tts: bool = False):
+    if no_tts:
+        return NoopSpeaker()
+    return SynthesizingSpeaker(create_tts_backend(config))
 
 
 if __name__ == "__main__":
