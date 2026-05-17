@@ -27,10 +27,10 @@
 ## 4. Speech Backend Adapters
 
 - [x] 4.1 Define wake-word, VAD, STT, and TTS adapter interfaces.
-- [ ] 4.2 Implement the selected wake-word adapter and a temporary manual trigger adapter for development.
-- [ ] 4.3 Implement the selected VAD adapter.
-- [ ] 4.4 Implement the selected STT adapter.
-- [ ] 4.5 Implement the selected TTS adapter.
+- [x] 4.2 Implement the selected wake-word adapter and a temporary manual trigger adapter for development.
+- [x] 4.3 Implement the selected VAD adapter.
+- [x] 4.4 Implement the selected STT adapter.
+- [x] 4.5 Implement the selected TTS adapter.
 - [x] 4.6 Add adapter-level tests or smoke checks for backend initialization, inference, failure handling, and configuration switching.
 
 ## 5. pi-agent Integration

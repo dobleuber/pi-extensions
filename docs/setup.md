@@ -4,24 +4,22 @@ Roger is currently a Python-first scaffold with local speech backend adapters an
 
 ## Development environment
 
-Use Python 3.11+ in an isolated environment. On Arch/CachyOS, prefer a virtual environment instead of system-wide `pip` installs.
+Use uv for Python and environment management. The project constrains Python to `>=3.11,<3.13` because several speech/ML packages commonly lag the latest Python releases.
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -e .
+uv sync
 ```
 
 Optional speech dependencies are grouped under `speech`:
 
 ```bash
-pip install -e '.[speech]'
+uv sync --group speech
 ```
 
 Run tests:
 
 ```bash
-PYTHONPATH=src python3 -m unittest discover -s tests
+uv run python -m unittest discover -s tests
 ```
 
 Run OpenSpec validation:

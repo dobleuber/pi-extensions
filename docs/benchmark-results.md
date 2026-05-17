@@ -38,13 +38,13 @@ Required metrics:
 Latest verified commands:
 
 ```bash
-PYTHONPATH=src python3 -m unittest discover -s tests
+uv run python -m unittest discover -s tests
 openspec validate add-roger-voice-laptop-interface --strict
-PYTHONPATH=src python3 -m roger.cli health
-PYTHONPATH=src python3 -m roger.cli spike wake --dry-run
-PYTHONPATH=src python3 -m roger.cli spike vad --dry-run
-PYTHONPATH=src python3 -m roger.cli spike stt --dry-run
-PYTHONPATH=src python3 -m roger.cli spike tts --dry-run
+uv run roger health
+uv run roger spike wake --dry-run
+uv run roger spike vad --dry-run
+uv run roger spike stt --dry-run
+uv run roger spike tts --dry-run
 ```
 
 Current local test evidence from this implementation session:

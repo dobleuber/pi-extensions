@@ -6,3 +6,5 @@ __pycache__/
 .venv/
 models/
 benchmarks/data/audio/
+
+*.egg-info/
