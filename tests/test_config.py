@@ -13,6 +13,10 @@ class RogerConfigTests(unittest.TestCase):
         self.assertEqual(config.speech.wake.backend, "nanowakeword")
         self.assertEqual(config.speech.wake.target_phrase, "hola roger")
         self.assertEqual(config.speech.wake.architectures, ["gru", "lstm", "tcn"])
+        self.assertEqual(
+            config.speech.wake.model_path,
+            Path("models/wake/nanowakeword/hola_roger_lstm/model/hola_roger_lstm.onnx"),
+        )
         self.assertEqual(config.speech.vad.backend, "silero")
         self.assertEqual(config.speech.stt.backend, "faster-whisper")
         self.assertEqual(config.speech.tts.backend, "kokoro")

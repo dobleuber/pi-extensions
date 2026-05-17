@@ -11,6 +11,7 @@ import tomllib
 class WakeConfig:
     backend: str = "nanowakeword"
     target_phrase: str = "hola roger"
+    model_path: Path = Path("models/wake/nanowakeword/hola_roger_lstm/model/hola_roger_lstm.onnx")
     architectures: list[str] = field(default_factory=lambda: ["gru", "lstm", "tcn"])
     threshold: float = 0.95
 

@@ -6,7 +6,7 @@ This document records the current default decisions and what still requires empi
 
 | Area | Default | Fallback / baseline | Status |
 |---|---|---|---|
-| Wake word | NanoWakeWord candidate set: GRU, LSTM, TCN | Manual trigger, then openWakeWord if needed | Training configs generated; no real audio benchmark yet |
+| Wake word | NanoWakeWord LSTM model at `models/wake/nanowakeword/hola_roger_lstm/model/hola_roger_lstm.onnx` | Manual trigger, then openWakeWord if needed | Model loads and listener smoke-tested; no real audio benchmark yet |
 | VAD | Silero VAD | WebRTC VAD | Benchmark plan implemented; no real audio benchmark yet |
 | STT | faster-whisper | whisper.cpp | Benchmark plan implemented; no real audio benchmark yet |
 | TTS | Kokoro | Piper | Benchmark plan implemented; no real audio benchmark yet |
@@ -50,7 +50,8 @@ uv run roger spike tts --dry-run
 Current local test evidence from this implementation session:
 
 ```text
-43 tests passing
+56 tests passing
 OpenSpec validation passing
 uv speech dependency group installed successfully
+NanoWakeWord LSTM model load/listener smoke test passing
 ```

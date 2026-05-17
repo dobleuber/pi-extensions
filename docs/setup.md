@@ -50,6 +50,18 @@ PYTHONPATH=src python3 -m roger.cli spike wake --write-configs --output-dir conf
 
 Generated configs are committed under `configs/nanowakeword/` for reproducibility. See `docs/wake-nanowakeword-spike.md` for training and benchmark guidance.
 
+Current selected local model path:
+
+```text
+models/wake/nanowakeword/hola_roger_lstm/model/hola_roger_lstm.onnx
+```
+
+Live listener smoke test:
+
+```bash
+uv run python scripts/nanowakeword/listen_hola_roger.py --duration 5 --min-print-score 0.2
+```
+
 ## VAD
 
 Default scaffold: Silero VAD.

@@ -13,7 +13,9 @@ class BackendFactoryTests(unittest.TestCase):
     def test_creates_selected_backends_from_default_config(self):
         config = RogerConfig.default()
 
-        self.assertIsInstance(create_wake_backend(config), NanoWakeWordAdapter)
+        wake = create_wake_backend(config)
+        self.assertIsInstance(wake, NanoWakeWordAdapter)
+        self.assertEqual(wake.model_path, config.speech.wake.model_path)
         self.assertIsInstance(create_vad_backend(config), SileroVadAdapter)
         self.assertIsInstance(create_stt_backend(config), FasterWhisperSttAdapter)
         self.assertIsInstance(create_tts_backend(config), KokoroTtsAdapter)

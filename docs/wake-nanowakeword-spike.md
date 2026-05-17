@@ -35,6 +35,16 @@ Each config includes:
 - phoneme adversarial negatives;
 - manual nearby negatives: `hola`, `roger`, `oye roger`, `hola rojo`, `hola royer`, `ola roger`.
 
+## Selected model
+
+The current LSTM model is stored outside git because `models/` is ignored:
+
+```text
+models/wake/nanowakeword/hola_roger_lstm/model/hola_roger_lstm.onnx
+```
+
+The listener defaults to this model.
+
 ## Training
 
 NanoWakeWord's public API/CLI has moved quickly, so verify exact commands against the installed package before running a long training job:

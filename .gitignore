@@ -4,7 +4,14 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .venv/
+.venv-nanowakeword/
 models/
 benchmarks/data/audio/
+benchmarks/data/wake/
+NwwResourcesModel/
+RACON_11h_v1.npy
+AE29H_float32.npy
+openwakeword_features_ACAV100M_2000_hrs_16bit.npy
+*.part
 
 *.egg-info/
