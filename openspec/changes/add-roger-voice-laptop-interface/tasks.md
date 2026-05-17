@@ -99,3 +99,5 @@
 - [x] 13.2 Show wake/listening, transcript, execution, and result states in the overlay.
 - [x] 13.3 Wire the overlay into `listen-once` and `daemon` by default with `--no-overlay` opt-out.
 - [x] 13.4 Add an `overlay-demo` command for manual visual verification without voice/pi execution.
+- [x] 13.5 Keep transcript and result visible in the overlay throughout execution instead of replacing them with transient status messages.
+- [x] 13.6 Add an isolated `roger say` command for local TTS/audio playback verification.

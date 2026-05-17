@@ -50,7 +50,7 @@ uv run roger spike tts --dry-run
 Current local test evidence from this implementation session:
 
 ```text
-95 tests passing
+100 tests passing
 OpenSpec validation passing
 uv speech dependency group installed successfully
 NanoWakeWord LSTM model load/listener smoke test passing
@@ -67,5 +67,6 @@ Roger sends OS-level `notify-send` feedback when available and plays Kokoro TTS 
 Kokoro TTS defaults to local cached config/model/voice files (`local_files_only = true`) with explicit repo id to avoid implicit HF downloads/warnings
 `roger daemon` runs continuous wake/instruction cycles and supports `--max-cycles` plus clean Ctrl+C summaries
 `roger overlay-demo` verifies the Siri-like floating overlay, and `listen-once`/`daemon` enable the overlay by default with `--no-overlay` opt-out
-On Omarchy/Hyprland, the overlay uses `gtk-layer-shell` as the definitive Wayland-native feedback surface, defaults to readable 36px/34px fonts, and falls back to Tk only when layer-shell is unavailable; duplicate `notify-send` notifications are opt-in via `--desktop-notifications`
+On Omarchy/Hyprland, the overlay uses `gtk-layer-shell` as the definitive Wayland-native feedback surface, defaults to readable 36px/34px fonts, keeps transcript/result visible through execution, and falls back to Tk only when layer-shell is unavailable; duplicate `notify-send` notifications are opt-in via `--desktop-notifications`
+`roger say "..."` provides an isolated TTS/audio playback smoke command
 ```

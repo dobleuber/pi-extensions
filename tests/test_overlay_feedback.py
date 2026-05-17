@@ -46,13 +46,14 @@ class OverlayFeedbackTests(unittest.TestCase):
 
         self.assertEqual(overlay.calls[0]["title"], "Roger activo")
         self.assertIn("Te escucho", overlay.calls[0]["body"])
-        self.assertEqual(overlay.calls[1]["title"], "Escuchando")
-        self.assertEqual(overlay.calls[2]["title"], "Transcripción")
+        self.assertEqual(overlay.calls[1]["title"], "Transcripción")
+        self.assertIn("corre pwd", overlay.calls[1]["body"])
+        self.assertEqual(overlay.calls[2]["title"], "Ejecutando")
         self.assertIn("corre pwd", overlay.calls[2]["body"])
-        self.assertEqual(overlay.calls[3]["title"], "Ejecutando")
-        self.assertIn("current-project", overlay.calls[3]["body"])
-        self.assertEqual(overlay.calls[4]["title"], "Resultado")
-        self.assertIn("Listo", overlay.calls[4]["body"])
+        self.assertIn("current-project", overlay.calls[2]["body"])
+        self.assertEqual(overlay.calls[3]["title"], "Resultado")
+        self.assertIn("corre pwd", overlay.calls[3]["body"])
+        self.assertIn("Listo", overlay.calls[3]["body"])
 
 
 if __name__ == "__main__":

@@ -18,34 +18,68 @@ class OverlayMessage:
     timeout_ms: int | None = None
 
 
-class OverlayFeedback:
-    """Feedback sink for a Siri/Google-like floating desktop overlay."""
+class StatefulOverlayFeedback:
+    """Stateful Siri/Google-like floating desktop overlay feedback.
+
+    The overlay is a persistent surface, not a notification stream. It keeps the
+    transcript visible while Roger executes and includes both transcript and
+    result in the final state.
+    """
 
     def __init__(self, overlay: Overlay | None = None):
         self.overlay = overlay or GtkLayerShellFloatingOverlay()
+        self.transcript = ""
+        self.result = ""
 
     def listening_for_wake(self, manual: bool = False) -> None:
         if manual:
             self.overlay.show("Roger activo", "Te escucho…", state="listening")
 
     def wake_detected(self, phrase: str, score: float) -> None:
+        self.transcript = ""
+        self.result = ""
         self.overlay.show("Roger activo", "Te escucho…", state="listening")
 
     def capturing_instruction(self) -> None:
-        self.overlay.show("Escuchando", "Decime la tarea", state="listening")
+        # Keep the wake/listening screen stable while VAD captures speech.
+        if not self.transcript:
+            return
 
     def transcribing(self) -> None:
         self.overlay.show("Transcribiendo", "Procesando tu voz…", state="processing")
 
     def transcription_ready(self, text: str) -> None:
-        self.overlay.show("Transcripción", text, state="transcript")
+        self.transcript = text
+        self.overlay.show("Transcripción", self._transcript_body(), state="transcript")
 
     def dispatching(self, session_name: str) -> None:
-        self.overlay.show("Ejecutando", f"Enviando a pi-agent: {session_name}", state="processing")
+        self.overlay.show(
+            "Ejecutando",
+            self._transcript_body(extra=f"Ejecutando en: {session_name}"),
+            state="processing",
+        )
 
     def completed(self, status: str, message: str = "") -> None:
-        body = message or status
-        self.overlay.show("Resultado", body, state=status, timeout_ms=10_000)
+        self.result = message or status
+        self.overlay.show("Resultado", self._result_body(), state=status)
+
+    def _transcript_body(self, extra: str | None = None) -> str:
+        body = f"Tarea:\n{self.transcript}" if self.transcript else "Te escucho…"
+        if extra:
+            body += f"\n\n{extra}"
+        return body
+
+    def _result_body(self) -> str:
+        sections = []
+        if self.transcript:
+            sections.append(f"Tarea:\n{self.transcript}")
+        if self.result:
+            sections.append(f"Resultado:\n{self.result}")
+        return "\n\n".join(sections) or "Listo"
+
+
+class OverlayFeedback(StatefulOverlayFeedback):
+    """Backward-compatible name for the default stateful overlay feedback."""
 
 
 class TkFloatingOverlay:

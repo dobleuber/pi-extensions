@@ -176,7 +176,7 @@ For bounded testing, stop after one wake/instruction cycle:
 uv run roger daemon --max-cycles 1 --no-tts
 ```
 
-The floating overlay is the definitive desktop feedback surface and is enabled by default for `listen-once` and `daemon`. Desktop notifications are off by default to avoid duplicated feedback; enable them only if desired with `--desktop-notifications`.
+The floating overlay is the definitive desktop feedback surface and is enabled by default for `listen-once`, `daemon`, and typed `task` runs. It keeps the transcript visible while Roger executes and includes both transcript and result in the final overlay. Desktop notifications are off by default to avoid duplicated feedback; enable them only if desired with `--desktop-notifications`.
 
 Disable the overlay with `--no-overlay` if needed:
 
@@ -187,6 +187,12 @@ uv run roger daemon --no-overlay --no-tts
 Stop an unbounded daemon with `Ctrl+C`; Roger exits cleanly and prints a cycle/dispatch summary.
 
 For early testing, keep `--no-tts` if you only want textual output. Without `--no-tts`, Roger plays the synthesized Kokoro response through the local audio output.
+
+To test the speaker/TTS path alone:
+
+```bash
+uv run roger say "Hola, soy Roger."
+```
 
 Roger uses Kokoro local files by default (`speech.tts.local_files_only = true`) and resolves the model from the Hugging Face cache without network calls. If needed, pin explicit paths in `roger.toml`:
 

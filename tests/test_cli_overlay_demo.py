@@ -25,8 +25,8 @@ class CliOverlayDemoTests(unittest.TestCase):
         self.assertEqual(exit_code, 0)
         self.assertIn("overlay demo sent", output)
         bodies = [call[1] for call in overlay.calls]
-        self.assertIn("corre pwd", bodies)
-        self.assertIn("Listo", bodies)
+        self.assertTrue(any("corre pwd" in body for body in bodies))
+        self.assertTrue(any("Listo" in body for body in bodies))
 
 
 if __name__ == "__main__":
