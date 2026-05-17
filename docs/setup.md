@@ -194,6 +194,8 @@ To test the speaker/TTS path alone:
 uv run roger say "Hola, soy Roger."
 ```
 
+On Omarchy/PipeWire, Roger prefers `pw-play` for playback and falls back to `sounddevice` only if `pw-play` is unavailable.
+
 Roger uses Kokoro local files by default (`speech.tts.local_files_only = true`) and resolves the model from the Hugging Face cache without network calls. If needed, pin explicit paths in `roger.toml`:
 
 ```toml

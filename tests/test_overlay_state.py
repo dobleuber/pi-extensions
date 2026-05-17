@@ -27,6 +27,7 @@ class StatefulOverlayFeedbackTests(unittest.TestCase):
         self.assertIn("corre pwd", dispatch_body)
         self.assertIn("corre pwd", result_body)
         self.assertIn("El directorio actual", result_body)
+        self.assertGreaterEqual(overlay.calls[-1]["timeout_ms"], 15000)
 
     def test_listening_state_is_not_replaced_by_duplicate_capture_message(self):
         overlay = FakeOverlay()

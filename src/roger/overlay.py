@@ -64,7 +64,7 @@ class StatefulOverlayFeedback:
 
     def completed(self, status: str, message: str = "") -> None:
         self.result = message or status
-        self.overlay.show("Resultado", self._result_body(), state=status)
+        self.overlay.show("Resultado", self._result_body(), state=status, timeout_ms=15_000)
 
     def _transcript_body(self, extra: str | None = None) -> str:
         body = f"Tarea:\n{self.transcript}" if self.transcript else "Te escucho…"

@@ -6,6 +6,10 @@ import json
 import sys
 
 
+def quit_delay_after_stdin_close(last_timeout_ms: int | None = None) -> int:
+    return max(15_000, int(last_timeout_ms or 0) + 250)
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Roger gtk-layer-shell overlay helper")
     parser.add_argument("--width", type=int, default=1100)
@@ -79,6 +83,7 @@ def main() -> int:
     frame.pack_start(body_label, True, True, 0)
 
     hide_source = {"id": None}
+    last_timeout = {"ms": None}
 
     def hide():
         window.hide()
@@ -96,16 +101,14 @@ def main() -> int:
         window.show_all()
         window.present()
         timeout_ms = message.get("timeout_ms")
+        last_timeout["ms"] = timeout_ms
         if timeout_ms:
             hide_source["id"] = GLib.timeout_add(int(timeout_ms), hide)
 
     def on_stdin(_source, condition):
-        if condition & (GLib.IO_HUP | GLib.IO_ERR):
-            Gtk.main_quit()
-            return False
-        line = sys.stdin.readline()
+        line = sys.stdin.readline() if condition & GLib.IO_IN else ""
         if not line:
-            Gtk.main_quit()
+            GLib.timeout_add(quit_delay_after_stdin_close(last_timeout["ms"]), Gtk.main_quit)
             return False
         try:
             show_message(json.loads(line))

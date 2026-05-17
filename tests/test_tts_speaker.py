@@ -1,7 +1,9 @@
 import unittest
 
 from roger.backends.interfaces import SynthesizedSpeech
-from roger.tts_speaker import NoopSpeaker, SynthesizingSpeaker
+import numpy as np
+
+from roger.tts_speaker import NoopSpeaker, SynthesizingSpeaker, SystemAudioPlayer
 
 
 class FakeTtsBackend:
@@ -42,6 +44,42 @@ class TtsSpeakerTests(unittest.TestCase):
         speaker.speak("Hola")
 
         self.assertEqual(played, [(b"audio", 24_000)])
+
+    def test_system_audio_player_prefers_pipewire_pw_play_when_available(self):
+        calls = []
+        speech = SynthesizedSpeech(
+            audio=np.array([0.0, 0.5, -0.5], dtype=np.float32).tobytes(),
+            sample_rate=24_000,
+        )
+        player = SystemAudioPlayer(
+            command_exists=lambda command: command == "pw-play",
+            run_command=lambda command: calls.append(command),
+        )
+
+        player.play(speech)
+
+        self.assertEqual(calls[0][0], "pw-play")
+        self.assertTrue(calls[0][1].endswith(".wav"))
+
+    def test_system_audio_player_falls_back_to_sounddevice(self):
+        played = []
+        waited = []
+        speech = SynthesizedSpeech(
+            audio=np.array([0.0, 0.5], dtype=np.float32).tobytes(),
+            sample_rate=24_000,
+        )
+        player = SystemAudioPlayer(
+            command_exists=lambda command: False,
+            sounddevice_module=type("SD", (), {
+                "play": staticmethod(lambda audio, samplerate: played.append((len(audio), samplerate))),
+                "wait": staticmethod(lambda: waited.append(True)),
+            }),
+        )
+
+        player.play(speech)
+
+        self.assertEqual(played, [(2, 24_000)])
+        self.assertEqual(waited, [True])
 
 
 if __name__ == "__main__":
