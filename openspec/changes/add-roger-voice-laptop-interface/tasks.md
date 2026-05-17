@@ -50,17 +50,17 @@
 
 ## 7. Transcription Preview and Logs
 
-- [ ] 7.1 Implement a visible transcription preview surface with accept, cancel, and timeout behavior.
-- [ ] 7.2 Ensure cancelled previews are not dispatched to pi-agent.
-- [ ] 7.3 Implement a task log surface that displays pi-agent text, tool events, command output, errors, and completion status.
-- [ ] 7.4 Implement concise response summarization rules so long logs are not spoken by default.
+- [x] 7.1 Implement a visible transcription preview surface with accept, cancel, and timeout behavior.
+- [x] 7.2 Ensure cancelled previews are not dispatched to pi-agent.
+- [x] 7.3 Implement a task log surface that displays pi-agent text, tool events, command output, errors, and completion status.
+- [x] 7.4 Implement concise response summarization rules so long logs are not spoken by default.
 
 ## 8. MVP Manual Loop
 
-- [ ] 8.1 Build a manual-trigger flow that accepts typed or simulated transcriptions and dispatches them through preview, router, pi-agent, log, and TTS.
-- [ ] 8.2 Verify the manual loop for a `current-project` task.
-- [ ] 8.3 Verify the manual loop for a `system` task that does not require destructive changes.
-- [ ] 8.4 Verify failure handling when pi-agent is unavailable.
+- [x] 8.1 Build a manual-trigger flow that accepts typed or simulated transcriptions and dispatches them through preview, router, pi-agent, log, and TTS.
+- [x] 8.2 Verify the manual loop for a `current-project` task.
+- [x] 8.3 Verify the manual loop for a `system` task that does not require destructive changes.
+- [x] 8.4 Verify failure handling when pi-agent is unavailable.
 
 ## 9. MVP Voice Loop
 
