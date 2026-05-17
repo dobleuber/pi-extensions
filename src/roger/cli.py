@@ -6,6 +6,8 @@ from typing import Sequence
 
 from roger.config import load_config
 from roger.benchmarks.wake_nanowakeword import write_training_configs
+from roger.benchmarks.wake_nanowakeword import ARCHITECTURES
+from roger.benchmarks.speech import build_stt_plan, build_tts_plan, build_vad_plan
 
 
 SPIKES = ("wake", "vad", "stt", "tts")
@@ -73,7 +75,19 @@ def _format_health(config) -> str:
 
 
 def _format_spike(spike: str, mode: str) -> str:
-    return f"{spike} spike ({mode})\n"
+    candidates: list[str]
+    if spike == "wake":
+        candidates = list(ARCHITECTURES)
+    elif spike == "vad":
+        candidates = [candidate["backend"] for candidate in build_vad_plan()["candidates"]]
+    elif spike == "stt":
+        candidates = [candidate["backend"] for candidate in build_stt_plan()["candidates"]]
+    elif spike == "tts":
+        candidates = [candidate["backend"] for candidate in build_tts_plan()["candidates"]]
+    else:
+        candidates = []
+    suffix = f"candidates: {', '.join(candidates)}" if candidates else "candidates: none"
+    return f"{spike} spike ({mode})\n{suffix}\n"
 
 
 if __name__ == "__main__":

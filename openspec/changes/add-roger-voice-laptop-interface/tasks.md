@@ -17,12 +17,12 @@
 
 ## 3. Speech Backend Spikes
 
-- [ ] 3.1 Implement a VAD benchmark comparing Silero VAD and WebRTC VAD for end-of-instruction detection.
-- [ ] 3.2 Select the default VAD backend and record thresholds for silence timeout and noise robustness.
-- [ ] 3.3 Implement an STT benchmark comparing faster-whisper and whisper.cpp on Spanish laptop-control instructions.
-- [ ] 3.4 Select the default STT backend and record model size, latency, accuracy, CPU/GPU usage, and install complexity.
-- [ ] 3.5 Implement a TTS benchmark comparing Kokoro and Piper for short Spanish Roger responses.
-- [ ] 3.6 Select the default TTS backend and record voice quality, latency, CPU/GPU usage, package status, licensing, and offline behavior.
+- [x] 3.1 Implement a VAD benchmark comparing Silero VAD and WebRTC VAD for end-of-instruction detection.
+- [x] 3.2 Select the default VAD backend and record thresholds for silence timeout and noise robustness.
+- [x] 3.3 Implement an STT benchmark comparing faster-whisper and whisper.cpp on Spanish laptop-control instructions.
+- [x] 3.4 Select the default STT backend and record model size, latency, accuracy, CPU/GPU usage, and install complexity.
+- [x] 3.5 Implement a TTS benchmark comparing Kokoro and Piper for short Spanish Roger responses.
+- [x] 3.6 Select the default TTS backend and record voice quality, latency, CPU/GPU usage, package status, licensing, and offline behavior.
 
 ## 4. Speech Backend Adapters
 

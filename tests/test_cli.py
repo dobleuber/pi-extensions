@@ -30,6 +30,12 @@ class RogerCliTests(unittest.TestCase):
         self.assertIn("sessions: current-project, system", output)
 
     def test_spike_command_can_dry_run_each_spike(self):
+        expected_candidates = {
+            "wake": ["gru", "lstm", "tcn"],
+            "vad": ["silero", "webrtc"],
+            "stt": ["faster-whisper", "whisper.cpp"],
+            "tts": ["kokoro", "piper"],
+        }
         for spike in ["wake", "vad", "stt", "tts"]:
             with self.subTest(spike=spike):
                 exit_code, output = run(["spike", spike, "--dry-run", "--project-dir", str(Path.cwd())])
@@ -37,6 +43,8 @@ class RogerCliTests(unittest.TestCase):
                 self.assertEqual(exit_code, 0)
                 self.assertIn(f"{spike} spike", output)
                 self.assertIn("dry-run", output)
+                for candidate in expected_candidates[spike]:
+                    self.assertIn(candidate, output)
 
     def test_wake_spike_can_write_nanowakeword_configs(self):
         import tempfile
