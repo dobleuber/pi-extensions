@@ -44,6 +44,7 @@ class CliTaskTests(unittest.TestCase):
             dependencies=cli.RuntimeDependencies(
                 create_pi_runner=lambda config, registry, offline=False: runner,
                 create_tts_speaker=lambda config, no_tts=False: speaker,
+                create_overlay_feedback=lambda config: FakeOverlayFeedback(),
             ),
         )
 
@@ -60,6 +61,7 @@ class CliTaskTests(unittest.TestCase):
             dependencies=cli.RuntimeDependencies(
                 create_pi_runner=lambda config, registry, offline=False: runner,
                 create_tts_speaker=lambda config, no_tts=False: FakeSpeaker(),
+                create_overlay_feedback=lambda config: FakeOverlayFeedback(),
             ),
         )
 

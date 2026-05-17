@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
+from pathlib import Path
 from queue import Queue, Empty
+import subprocess
 from threading import Thread
-from typing import Protocol
+from typing import Callable, Protocol
 
 
 class Overlay(Protocol):
@@ -196,13 +199,24 @@ class GtkLayerShellFloatingOverlay:
     for Omarchy/Hyprland than Tk/XWayland-style topmost windows.
     """
 
-    def __init__(self, width: int = 1100, height: int = 360, title_font_px: int = 36, body_font_px: int = 34):
+    def __init__(
+        self,
+        width: int = 1100,
+        height: int = 360,
+        title_font_px: int = 36,
+        body_font_px: int = 34,
+        system_python: str = "/usr/bin/python",
+        start_process: Callable[[list[str]], object] | None = None,
+    ):
         self.width = width
         self.height = height
         self.title_font_px = title_font_px
         self.body_font_px = body_font_px
         self.title_font_description = f"Sans Bold {title_font_px}"
         self.body_font_description = f"Sans {body_font_px}"
+        self.system_python = system_python
+        self.start_process = start_process or self._default_start_process
+        self._process = None
         self._queue: Queue[OverlayMessage] = Queue()
         self._started = False
         self._disabled = False
@@ -210,8 +224,60 @@ class GtkLayerShellFloatingOverlay:
     def show(self, title: str, body: str, state: str = "active", timeout_ms: int | None = None) -> None:
         if self._disabled:
             return
-        self._queue.put(OverlayMessage(title=title, body=body, state=state, timeout_ms=timeout_ms))
-        self._ensure_started()
+        message = OverlayMessage(title=title, body=body, state=state, timeout_ms=timeout_ms)
+        if not self._send_to_helper(message):
+            self._queue.put(message)
+            self._ensure_started()
+
+    def _send_to_helper(self, message: OverlayMessage) -> bool:
+        process = self._ensure_helper_process()
+        if process is None or getattr(process, "stdin", None) is None:
+            return False
+        try:
+            payload = {
+                "title": message.title,
+                "body": message.body,
+                "state": message.state,
+                "timeout_ms": message.timeout_ms,
+                "title_font": self.title_font_description,
+                "body_font": self.body_font_description,
+            }
+            process.stdin.write(json.dumps(payload, ensure_ascii=False) + "\n")
+            process.stdin.flush()
+            return True
+        except Exception:
+            self._process = None
+            return False
+
+    def _ensure_helper_process(self):
+        if self._process is not None and getattr(self._process, "poll", lambda: None)() is None:
+            return self._process
+        helper = Path(__file__).with_name("overlay_layer_shell_helper.py")
+        command = [
+            self.system_python,
+            str(helper),
+            "--width",
+            str(self.width),
+            "--height",
+            str(self.height),
+        ]
+        try:
+            self._process = self.start_process(command)
+            return self._process
+        except Exception:
+            self._process = None
+            return None
+
+    @staticmethod
+    def _default_start_process(command: list[str]):
+        return subprocess.Popen(
+            command,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            bufsize=1,
+        )
 
     def _ensure_started(self) -> None:
         if self._started or self._disabled:
