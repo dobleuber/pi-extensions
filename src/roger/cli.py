@@ -18,6 +18,7 @@ from roger.config import RogerConfig
 from roger.daemon import RogerDaemon
 from roger.feedback import CompositeFeedback, ConsoleFeedback
 from roger.feedback_system import SystemFeedback
+from roger.installer import AutostartInstaller
 from roger.overlay import OverlayFeedback
 from roger.pi_rpc.runner import PiAgentRunner
 from roger.pi_rpc.sessions import PiSessionManager
@@ -128,6 +129,16 @@ def build_parser() -> argparse.ArgumentParser:
     say.add_argument("--config", type=Path, default=None, help="Path to roger TOML config")
     say.add_argument("--project-dir", type=Path, default=Path.cwd(), help="Current project directory")
 
+    install = subcommands.add_parser("install-autostart", help="Install Roger daemon autostart for Omarchy/Hyprland")
+    install.add_argument("--config", type=Path, default=None, help="Path to roger TOML config")
+    install.add_argument("--home", type=Path, default=Path.home(), help="Home directory containing .config/hypr")
+    install.add_argument("--project-dir", type=Path, default=Path.cwd(), help="Roger project directory")
+
+    uninstall = subcommands.add_parser("uninstall-autostart", help="Remove Roger daemon autostart for Omarchy/Hyprland")
+    uninstall.add_argument("--config", type=Path, default=None, help="Path to roger TOML config")
+    uninstall.add_argument("--home", type=Path, default=Path.home(), help="Home directory containing .config/hypr")
+    uninstall.add_argument("--project-dir", type=Path, default=Path.cwd(), help="Roger project directory")
+
     return parser
 
 
@@ -189,6 +200,16 @@ def run(argv: Sequence[str] | None = None, dependencies: RuntimeDependencies | N
         speaker = dependencies.create_tts_speaker(config, no_tts=False)
         speaker.speak(args.text)
         return 0, "Roger say result\nspoken: yes\n"
+    if args.command == "install-autostart":
+        result = AutostartInstaller(home=args.home, project_dir=args.project_dir).install()
+        status = "installed" if result.changed else "already installed"
+        backup = f"\nbackup: {result.backup_path}" if result.backup_path else ""
+        return 0, f"Roger autostart {status}\npath: {result.autostart_path}{backup}\n"
+    if args.command == "uninstall-autostart":
+        result = AutostartInstaller(home=args.home, project_dir=args.project_dir).uninstall()
+        status = "uninstalled" if result.changed else "not installed"
+        backup = f"\nbackup: {result.backup_path}" if result.backup_path else ""
+        return 0, f"Roger autostart {status}\npath: {result.autostart_path}{backup}\n"
 
     return 2, f"Unsupported command: {args.command}\n"
 

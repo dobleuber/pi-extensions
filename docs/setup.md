@@ -186,6 +186,22 @@ uv run roger daemon --no-overlay --no-tts
 
 Stop an unbounded daemon with `Ctrl+C`; Roger exits cleanly and prints a cycle/dispatch summary. After each cycle, the daemon waits `--result-hold-seconds` (default `10`) before accepting the next wake so the overlay result remains readable.
 
+To install Roger as an Omarchy/Hyprland autostart daemon:
+
+```bash
+uv run roger install-autostart --project-dir /home/dobleuber/Projects/personal/pi-extensions
+hyprctl reload
+hyprctl configerrors
+```
+
+To remove it:
+
+```bash
+uv run roger uninstall-autostart
+hyprctl reload
+hyprctl configerrors
+```
+
 For early testing, keep `--no-tts` if you only want textual output. Without `--no-tts`, Roger plays the synthesized Kokoro response through the local audio output.
 
 To test the speaker/TTS path alone:

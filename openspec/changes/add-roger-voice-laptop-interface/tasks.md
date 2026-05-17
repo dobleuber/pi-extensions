@@ -103,3 +103,10 @@
 - [x] 13.6 Add an isolated `roger say` command for local TTS/audio playback verification.
 - [x] 13.7 Hold daemon results long enough to read before listening for the next wake cycle.
 - [x] 13.8 Speak clarification and failure outcomes, not only successful pi-agent responses.
+
+## 14. Omarchy Autostart Installer
+
+- [x] 14.1 Add a managed Hyprland autostart installer for `roger daemon`.
+- [x] 14.2 Add an uninstall command that removes only Roger's managed autostart block.
+- [x] 14.3 Create backups before editing `~/.config/hypr/autostart.lua`.
+- [x] 14.4 Validate the Hyprland configuration after installing with `hyprctl reload` and `hyprctl configerrors`.
