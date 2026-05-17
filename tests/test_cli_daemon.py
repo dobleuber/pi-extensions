@@ -1,6 +1,7 @@
 import unittest
 
 from roger import cli
+from roger.feedback_system import SystemFeedback
 
 
 class FakeWake:
@@ -111,6 +112,56 @@ class CliDaemonTests(unittest.TestCase):
         )
 
         self.assertIn(overlay, captured["feedback"].sinks)
+
+    def test_daemon_does_not_send_desktop_notifications_by_default(self):
+        captured = {}
+
+        class FakeVoiceLoop:
+            def __init__(self, registry, wake, vad, stt, pi_runner, tts, preview_action="accept", feedback=None):
+                captured["feedback"] = feedback
+
+            def run_once(self):
+                return type("Result", (), {"dispatched": False})()
+
+        cli.run(
+            ["daemon", "--max-cycles", "1", "--no-tts"],
+            dependencies=cli.RuntimeDependencies(
+                create_wake_backend=lambda config, force_manual=False: FakeWake(),
+                create_vad_backend=lambda config: FakeVad(),
+                create_stt_backend=lambda config: FakeStt(),
+                create_pi_runner=lambda config, registry, offline=False: FakeRunner(),
+                create_tts_speaker=lambda config, no_tts=False: FakeSpeaker(),
+                create_overlay_feedback=lambda config: FakeOverlayFeedback(),
+                voice_loop_class=FakeVoiceLoop,
+            ),
+        )
+
+        self.assertFalse(any(isinstance(sink, SystemFeedback) for sink in captured["feedback"].sinks))
+
+    def test_daemon_can_opt_into_desktop_notifications(self):
+        captured = {}
+
+        class FakeVoiceLoop:
+            def __init__(self, registry, wake, vad, stt, pi_runner, tts, preview_action="accept", feedback=None):
+                captured["feedback"] = feedback
+
+            def run_once(self):
+                return type("Result", (), {"dispatched": False})()
+
+        cli.run(
+            ["daemon", "--max-cycles", "1", "--no-tts", "--desktop-notifications"],
+            dependencies=cli.RuntimeDependencies(
+                create_wake_backend=lambda config, force_manual=False: FakeWake(),
+                create_vad_backend=lambda config: FakeVad(),
+                create_stt_backend=lambda config: FakeStt(),
+                create_pi_runner=lambda config, registry, offline=False: FakeRunner(),
+                create_tts_speaker=lambda config, no_tts=False: FakeSpeaker(),
+                create_overlay_feedback=lambda config: FakeOverlayFeedback(),
+                voice_loop_class=FakeVoiceLoop,
+            ),
+        )
+
+        self.assertTrue(any(isinstance(sink, SystemFeedback) for sink in captured["feedback"].sinks))
 
 
 if __name__ == "__main__":

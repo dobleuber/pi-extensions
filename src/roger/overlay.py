@@ -51,7 +51,7 @@ class OverlayFeedback:
 class TkFloatingOverlay:
     """Small always-on-top overlay. Fails closed when no graphical session is available."""
 
-    def __init__(self, width: int = 760, height: int = 220):
+    def __init__(self, width: int = 960, height: int = 300):
         self.width = width
         self.height = height
         self._queue: Queue[OverlayMessage] = Queue()
@@ -158,7 +158,7 @@ class GtkLayerShellFloatingOverlay:
     for Omarchy/Hyprland than Tk/XWayland-style topmost windows.
     """
 
-    def __init__(self, width: int = 760, height: int = 220):
+    def __init__(self, width: int = 960, height: int = 300):
         self.width = width
         self.height = height
         self._queue: Queue[OverlayMessage] = Queue()
@@ -197,6 +197,7 @@ class GtkLayerShellFloatingOverlay:
             GtkLayerShell.set_anchor(window, GtkLayerShell.Edge.TOP, True)
             GtkLayerShell.set_margin(window, GtkLayerShell.Edge.TOP, 72)
             window.set_default_size(self.width, self.height)
+            window.set_size_request(self.width, self.height)
             window.set_decorated(False)
             window.set_app_paintable(True)
             window.set_resizable(False)
@@ -233,6 +234,7 @@ class GtkLayerShellFloatingOverlay:
 
             frame = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14)
             frame.set_name("roger-window")
+            frame.set_size_request(self.width, self.height)
             frame.set_margin_top(24)
             frame.set_margin_bottom(24)
             frame.set_margin_start(28)

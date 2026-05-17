@@ -75,6 +75,7 @@ def build_parser() -> argparse.ArgumentParser:
     listen_once.add_argument("--no-tts", action="store_true", help="Do not synthesize spoken output")
     listen_once.add_argument("--quiet", action="store_true", help="Suppress live progress messages")
     listen_once.add_argument("--no-overlay", action="store_true", help="Disable the floating desktop overlay")
+    listen_once.add_argument("--desktop-notifications", action="store_true", help="Also send notify-send desktop notifications")
     listen_once.add_argument("--wake-threshold", type=float, default=None, help="Override wake detection threshold for this run")
     listen_once.add_argument("--wake-debug", action="store_true", help="Print NanoWakeWord scores while waiting")
     listen_once.add_argument("--wake-debug-min-score", type=float, default=0.2, help="Minimum score printed by --wake-debug")
@@ -88,6 +89,7 @@ def build_parser() -> argparse.ArgumentParser:
     daemon.add_argument("--no-tts", action="store_true", help="Do not synthesize spoken output")
     daemon.add_argument("--quiet", action="store_true", help="Suppress console and desktop feedback")
     daemon.add_argument("--no-overlay", action="store_true", help="Disable the floating desktop overlay")
+    daemon.add_argument("--desktop-notifications", action="store_true", help="Also send notify-send desktop notifications")
     daemon.add_argument("--wake-threshold", type=float, default=None, help="Override wake detection threshold for this run")
     daemon.add_argument("--wake-debug", action="store_true", help="Print NanoWakeWord scores while waiting")
     daemon.add_argument("--wake-debug-min-score", type=float, default=0.2, help="Minimum score printed by --wake-debug")
@@ -368,9 +370,11 @@ def _create_overlay_feedback(config: RogerConfig):
 
 
 def _feedback_sinks(args, config: RogerConfig, dependencies: RuntimeDependencies):
-    sinks = [ConsoleFeedback(echo=True, show_waiting=False), SystemFeedback()]
+    sinks = [ConsoleFeedback(echo=True, show_waiting=False)]
     if not getattr(args, "no_overlay", False):
         sinks.append(dependencies.create_overlay_feedback(config))
+    if getattr(args, "desktop_notifications", False):
+        sinks.append(SystemFeedback())
     return sinks
 
 

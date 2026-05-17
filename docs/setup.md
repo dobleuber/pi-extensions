@@ -176,7 +176,9 @@ For bounded testing, stop after one wake/instruction cycle:
 uv run roger daemon --max-cycles 1 --no-tts
 ```
 
-The floating overlay is enabled by default for `listen-once` and `daemon`. Disable it with `--no-overlay` if needed:
+The floating overlay is the definitive desktop feedback surface and is enabled by default for `listen-once` and `daemon`. Desktop notifications are off by default to avoid duplicated feedback; enable them only if desired with `--desktop-notifications`.
+
+Disable the overlay with `--no-overlay` if needed:
 
 ```bash
 uv run roger daemon --no-overlay --no-tts

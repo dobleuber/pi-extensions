@@ -22,6 +22,12 @@ class OverlayFeedbackTests(unittest.TestCase):
 
         self.assertIsInstance(feedback.overlay, GtkLayerShellFloatingOverlay)
 
+    def test_layer_shell_overlay_has_large_default_size(self):
+        overlay = GtkLayerShellFloatingOverlay()
+
+        self.assertGreaterEqual(overlay.width, 900)
+        self.assertGreaterEqual(overlay.height, 260)
+
     def test_overlay_feedback_shows_siri_like_phases(self):
         overlay = FakeOverlay()
         feedback = OverlayFeedback(overlay)
