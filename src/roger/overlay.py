@@ -51,9 +51,11 @@ class OverlayFeedback:
 class TkFloatingOverlay:
     """Small always-on-top overlay. Fails closed when no graphical session is available."""
 
-    def __init__(self, width: int = 960, height: int = 300):
+    def __init__(self, width: int = 1100, height: int = 360, title_font_px: int = 36, body_font_px: int = 34):
         self.width = width
         self.height = height
+        self.title_font_px = title_font_px
+        self.body_font_px = body_font_px
         self._queue: Queue[OverlayMessage] = Queue()
         self._started = False
         self._disabled = False
@@ -108,7 +110,7 @@ class TkFloatingOverlay:
             textvariable=title_var,
             fg="#93c5fd",
             bg="#111827",
-            font=("Sans", 22, "bold"),
+            font=("Sans", self.title_font_px, "bold"),
             anchor="w",
         ).pack(fill="x")
         tk.Label(
@@ -116,7 +118,7 @@ class TkFloatingOverlay:
             textvariable=body_var,
             fg="#f9fafb",
             bg="#111827",
-            font=("Sans", 18),
+            font=("Sans", self.body_font_px),
             wraplength=self.width - 56,
             justify="left",
             anchor="w",
@@ -158,9 +160,11 @@ class GtkLayerShellFloatingOverlay:
     for Omarchy/Hyprland than Tk/XWayland-style topmost windows.
     """
 
-    def __init__(self, width: int = 960, height: int = 300):
+    def __init__(self, width: int = 1100, height: int = 360, title_font_px: int = 36, body_font_px: int = 34):
         self.width = width
         self.height = height
+        self.title_font_px = title_font_px
+        self.body_font_px = body_font_px
         self._queue: Queue[OverlayMessage] = Queue()
         self._started = False
         self._disabled = False
@@ -207,22 +211,22 @@ class GtkLayerShellFloatingOverlay:
 
             css = Gtk.CssProvider()
             css.load_from_data(
-                b"""
-                #roger-window {
+                f"""
+                #roger-window {{
                   background-color: rgba(17, 24, 39, 0.94);
                   border: 2px solid rgba(147, 197, 253, 0.90);
                   border-radius: 28px;
-                }
-                #roger-title {
+                }}
+                #roger-title {{
                   color: #93c5fd;
-                  font-size: 22px;
+                  font-size: {self.title_font_px}px;
                   font-weight: 700;
-                }
-                #roger-body {
+                }}
+                #roger-body {{
                   color: #f9fafb;
-                  font-size: 18px;
-                }
-                """
+                  font-size: {self.body_font_px}px;
+                }}
+                """.encode("utf-8")
             )
             screen = Gdk.Screen.get_default()
             if screen is not None:
@@ -251,7 +255,7 @@ class GtkLayerShellFloatingOverlay:
             body_label.set_xalign(0)
             body_label.set_yalign(0)
             body_label.set_line_wrap(True)
-            body_label.set_max_width_chars(72)
+            body_label.set_max_width_chars(46)
             frame.pack_start(body_label, True, True, 0)
 
             hide_source = {"id": None}

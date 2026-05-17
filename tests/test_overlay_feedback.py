@@ -28,6 +28,12 @@ class OverlayFeedbackTests(unittest.TestCase):
         self.assertGreaterEqual(overlay.width, 900)
         self.assertGreaterEqual(overlay.height, 260)
 
+    def test_layer_shell_overlay_uses_readable_font_sizes(self):
+        overlay = GtkLayerShellFloatingOverlay()
+
+        self.assertGreaterEqual(overlay.title_font_px, 34)
+        self.assertGreaterEqual(overlay.body_font_px, 32)
+
     def test_overlay_feedback_shows_siri_like_phases(self):
         overlay = FakeOverlay()
         feedback = OverlayFeedback(overlay)
