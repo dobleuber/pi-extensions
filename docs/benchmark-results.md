@@ -54,4 +54,5 @@ Current local test evidence from this implementation session:
 OpenSpec validation passing
 uv speech dependency group installed successfully
 NanoWakeWord LSTM model load/listener smoke test passing
+User live-tested the LSTM model and reported it works well
 ```

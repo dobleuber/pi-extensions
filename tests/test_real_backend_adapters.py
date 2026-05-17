@@ -16,23 +16,74 @@ class RealAdapterBehaviorTests(unittest.TestCase):
             score = 0.97
 
         class Interpreter:
+            model_name = "hola_roger_lstm"
+
             @classmethod
             def load_model(cls, model):
                 self = cls()
                 self.model = model
                 return self
 
-            def predict(self, chunk):
+            def predict(self, chunk, threshold=None):
                 self.chunk = chunk
+                self.threshold = threshold
                 return Result()
 
         module = types.SimpleNamespace(NanoInterpreter=Interpreter)
-        adapter = NanoWakeWordAdapter("model.onnx", import_module=lambda _: module)
+        adapter = NanoWakeWordAdapter("model.onnx", import_module=lambda _: module, threshold=0.85)
 
         detection = adapter.predict_chunk(b"\x00\x00" * 512)
 
         self.assertEqual(detection.phrase, "hola roger")
         self.assertEqual(detection.score, 0.97)
+        self.assertEqual(adapter._interpreter.threshold, {"hola_roger_lstm": 0.85})
+
+    def test_nanowakeword_listen_once_reads_microphone_until_detection(self):
+        import numpy as np
+
+        class Result:
+            def __init__(self, detected, score):
+                self.detected = detected
+                self.score = score
+
+        class Interpreter:
+            model_name = "hola_roger_lstm"
+
+            def __init__(self):
+                self.calls = 0
+
+            @classmethod
+            def load_model(cls, model):
+                return cls()
+
+            def predict(self, chunk, threshold=None):
+                self.calls += 1
+                return Result(self.calls == 2, 0.91 if self.calls == 2 else 0.1)
+
+        class Stream:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+            def read(self, blocksize):
+                return np.zeros((blocksize, 1), dtype=np.int16), None
+
+        sounddevice = types.SimpleNamespace(InputStream=lambda **kwargs: Stream())
+        module = types.SimpleNamespace(NanoInterpreter=Interpreter)
+        adapter = NanoWakeWordAdapter(
+            "model.onnx",
+            import_module=lambda _: module,
+            sounddevice_module=sounddevice,
+            threshold=0.85,
+            duration=2.0,
+        )
+
+        detection = adapter.listen_once()
+
+        self.assertEqual(detection.phrase, "hola roger")
+        self.assertEqual(detection.score, 0.91)
 
     def test_silero_detect_speech_from_path_uses_timestamps(self):
         module = types.SimpleNamespace(

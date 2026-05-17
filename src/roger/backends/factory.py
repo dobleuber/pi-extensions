@@ -12,7 +12,11 @@ def create_wake_backend(config: RogerConfig, force_manual: bool = False):
     if force_manual:
         return ManualWakeWordAdapter(target_phrase=config.speech.wake.target_phrase)
     if config.speech.wake.backend == "nanowakeword":
-        return NanoWakeWordAdapter(model_path=config.speech.wake.model_path)
+        return NanoWakeWordAdapter(
+            model_path=config.speech.wake.model_path,
+            target_phrase=config.speech.wake.target_phrase,
+            threshold=config.speech.wake.threshold,
+        )
     if config.speech.wake.backend == "manual":
         return ManualWakeWordAdapter(target_phrase=config.speech.wake.target_phrase)
     raise ValueError(f"Unsupported wake backend: {config.speech.wake.backend}")

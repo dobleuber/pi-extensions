@@ -16,6 +16,8 @@ class BackendFactoryTests(unittest.TestCase):
         wake = create_wake_backend(config)
         self.assertIsInstance(wake, NanoWakeWordAdapter)
         self.assertEqual(wake.model_path, config.speech.wake.model_path)
+        self.assertEqual(wake.target_phrase, "hola roger")
+        self.assertEqual(wake.threshold, config.speech.wake.threshold)
         self.assertIsInstance(create_vad_backend(config), SileroVadAdapter)
         self.assertIsInstance(create_stt_backend(config), FasterWhisperSttAdapter)
         self.assertIsInstance(create_tts_backend(config), KokoroTtsAdapter)
