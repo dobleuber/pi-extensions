@@ -1,6 +1,6 @@
 import unittest
 
-from roger.overlay import OverlayFeedback
+from roger.overlay import GtkLayerShellFloatingOverlay, OverlayFeedback
 
 
 class FakeOverlay:
@@ -17,6 +17,11 @@ class FakeOverlay:
 
 
 class OverlayFeedbackTests(unittest.TestCase):
+    def test_overlay_feedback_defaults_to_wayland_layer_shell_overlay(self):
+        feedback = OverlayFeedback()
+
+        self.assertIsInstance(feedback.overlay, GtkLayerShellFloatingOverlay)
+
     def test_overlay_feedback_shows_siri_like_phases(self):
         overlay = FakeOverlay()
         feedback = OverlayFeedback(overlay)

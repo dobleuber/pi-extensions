@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 from dataclasses import dataclass
 from pathlib import Path
+import time
 import wave
 from typing import Callable, Sequence, Type
 
@@ -112,6 +113,7 @@ def build_parser() -> argparse.ArgumentParser:
     overlay_demo.add_argument("--project-dir", type=Path, default=Path.cwd(), help="Current project directory")
     overlay_demo.add_argument("--transcript", default="corre pwd y dime el directorio actual")
     overlay_demo.add_argument("--result", default="Listo")
+    overlay_demo.add_argument("--duration", type=float, default=5.0, help="Seconds to keep the demo process alive")
 
     return parser
 
@@ -164,6 +166,8 @@ def run(argv: Sequence[str] | None = None, dependencies: RuntimeDependencies | N
         feedback.transcription_ready(args.transcript)
         feedback.dispatching("current-project")
         feedback.completed("complete", args.result)
+        if args.duration > 0:
+            time.sleep(args.duration)
         return 0, "overlay demo sent\n"
 
     return 2, f"Unsupported command: {args.command}\n"

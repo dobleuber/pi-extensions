@@ -16,7 +16,7 @@ class CliOverlayDemoTests(unittest.TestCase):
         overlay = FakeOverlay()
 
         exit_code, output = cli.run(
-            ["overlay-demo", "--transcript", "corre pwd", "--result", "Listo"],
+            ["overlay-demo", "--transcript", "corre pwd", "--result", "Listo", "--duration", "0"],
             dependencies=cli.RuntimeDependencies(
                 create_overlay_feedback=lambda config: __import__("roger.overlay", fromlist=["OverlayFeedback"]).OverlayFeedback(overlay),
             ),
