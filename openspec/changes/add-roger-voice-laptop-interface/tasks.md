@@ -26,27 +26,27 @@
 
 ## 4. Speech Backend Adapters
 
-- [ ] 4.1 Define wake-word, VAD, STT, and TTS adapter interfaces.
+- [x] 4.1 Define wake-word, VAD, STT, and TTS adapter interfaces.
 - [ ] 4.2 Implement the selected wake-word adapter and a temporary manual trigger adapter for development.
 - [ ] 4.3 Implement the selected VAD adapter.
 - [ ] 4.4 Implement the selected STT adapter.
 - [ ] 4.5 Implement the selected TTS adapter.
-- [ ] 4.6 Add adapter-level tests or smoke checks for backend initialization, inference, failure handling, and configuration switching.
+- [x] 4.6 Add adapter-level tests or smoke checks for backend initialization, inference, failure handling, and configuration switching.
 
 ## 5. pi-agent Integration
 
-- [ ] 5.1 Implement a JSONL RPC client for `pi --mode rpc` that can start pi, send prompts, read streamed events, and stop cleanly.
-- [ ] 5.2 Implement session creation/reuse for separate `system` and `current-project` pi-agent contexts.
-- [ ] 5.3 Implement online/default pi model selection and offline Ollama fallback selection.
-- [ ] 5.4 Add smoke tests for prompt dispatch, streamed response capture, tool-event logging, task completion, and pi-agent failure reporting.
+- [x] 5.1 Implement a JSONL RPC client for `pi --mode rpc` that can start pi, send prompts, read streamed events, and stop cleanly.
+- [x] 5.2 Implement session creation/reuse for separate `system` and `current-project` pi-agent contexts.
+- [x] 5.3 Implement online/default pi model selection and offline Ollama fallback selection.
+- [x] 5.4 Add smoke tests for prompt dispatch, streamed response capture, tool-event logging, task completion, and pi-agent failure reporting.
 
 ## 6. Router and Session Registry
 
-- [ ] 6.1 Implement the initial context registry with `system` and `current-project` domains.
-- [ ] 6.2 Implement rule-based routing for system tasks such as install, uninstall, update, kill app, and laptop-level management.
-- [ ] 6.3 Implement rule-based routing for current-project tasks such as edit files, create demos, inspect code, and run tests.
-- [ ] 6.4 Implement ambiguity handling that asks for clarification when the target domain or project cannot be resolved confidently.
-- [ ] 6.5 Add routing tests for system, current-project, and ambiguous instructions.
+- [x] 6.1 Implement the initial context registry with `system` and `current-project` domains.
+- [x] 6.2 Implement rule-based routing for system tasks such as install, uninstall, update, kill app, and laptop-level management.
+- [x] 6.3 Implement rule-based routing for current-project tasks such as edit files, create demos, inspect code, and run tests.
+- [x] 6.4 Implement ambiguity handling that asks for clarification when the target domain or project cannot be resolved confidently.
+- [x] 6.5 Add routing tests for system, current-project, and ambiguous instructions.
 
 ## 7. Transcription Preview and Logs
 
