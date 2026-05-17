@@ -50,7 +50,7 @@ uv run roger spike tts --dry-run
 Current local test evidence from this implementation session:
 
 ```text
-58 tests passing
+60 tests passing
 OpenSpec validation passing
 uv speech dependency group installed successfully
 NanoWakeWord LSTM model load/listener smoke test passing
