@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 
 from roger.backends.interfaces import SttBackend, TtsBackend, VadBackend, WakeWordBackend
+from roger.feedback import Feedback
 from roger.manual_loop import ManualLoop, PiRunner
 from roger.routing.registry import SessionRegistry
 
@@ -35,21 +36,34 @@ class VoiceLoop:
         pi_runner: PiRunner,
         tts: TtsBackend,
         preview_action: str = "accept",
+        feedback: Feedback | None = None,
     ):
         self.wake = wake
         self.vad = vad
         self.stt = stt
-        self.manual_loop = ManualLoop(registry, pi_runner=pi_runner, tts=tts)
+        self.feedback = feedback
+        self.manual_loop = ManualLoop(registry, pi_runner=pi_runner, tts=tts, feedback=feedback)
         self.preview_action = preview_action
 
     def run_once(self) -> VoiceLoopResult:
+        if self.feedback is not None:
+            self.feedback.listening_for_wake()
         detection = self.wake.listen_once()
         if detection is None:
             return VoiceLoopResult(state=VoiceLoopState.LISTENING, status="listening", dispatched=False)
 
+        if self.feedback is not None:
+            self.feedback.wake_detected(detection.phrase, detection.score)
+            self.feedback.capturing_instruction()
         audio = self.vad.capture_until_silence()
+        if self.feedback is not None:
+            self.feedback.transcribing()
         transcription = self.stt.transcribe(audio)
+        if self.feedback is not None:
+            self.feedback.transcription_ready(transcription.text)
         result = self.manual_loop.run_transcription(transcription.text, preview_action=self.preview_action)
+        if self.feedback is not None:
+            self.feedback.completed(result.status, result.message)
         return VoiceLoopResult(
             state=VoiceLoopState.LISTENING,
             status=result.status,

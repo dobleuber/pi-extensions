@@ -7,6 +7,7 @@ from roger.routing.registry import SessionRegistry
 from roger.routing.router import Router
 from roger.summarization import summarize_for_speech
 from roger.ui.preview import PreviewAction, TranscriptionPreview
+from roger.feedback import Feedback
 
 
 class PiRunner(Protocol):
@@ -26,11 +27,12 @@ class ManualLoopResult:
 
 
 class ManualLoop:
-    def __init__(self, registry: SessionRegistry, pi_runner: PiRunner, tts: TtsSpeaker):
+    def __init__(self, registry: SessionRegistry, pi_runner: PiRunner, tts: TtsSpeaker, feedback: Feedback | None = None):
         self.router = Router(registry)
         self.preview = TranscriptionPreview()
         self.pi_runner = pi_runner
         self.tts = tts
+        self.feedback = feedback
 
     def run_transcription(self, transcription: str, preview_action: str = "accept") -> ManualLoopResult:
         action = PreviewAction(preview_action)
@@ -41,6 +43,9 @@ class ManualLoop:
         route = self.router.route(decision.text)
         if route.needs_clarification:
             return ManualLoopResult(status="needs_clarification", dispatched=False, session_name=None, message=route.question)
+
+        if self.feedback is not None:
+            self.feedback.dispatching(route.session_name)
 
         try:
             response = self.pi_runner.run_task(route.session_name, decision.text)

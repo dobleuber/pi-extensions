@@ -31,7 +31,7 @@ class FakeSpeaker:
 class CliListenOnceTests(unittest.TestCase):
     def test_listen_once_command_wires_voice_loop_and_reports_result(self):
         class FakeVoiceLoop:
-            def __init__(self, registry, wake, vad, stt, pi_runner, tts, preview_action="accept"):
+            def __init__(self, registry, wake, vad, stt, pi_runner, tts, preview_action="accept", feedback=None):
                 self.preview_action = preview_action
 
             def run_once(self):
@@ -42,7 +42,7 @@ class CliListenOnceTests(unittest.TestCase):
                 })()
 
         exit_code, output = cli.run(
-            ["listen-once", "--project-dir", "/tmp/project", "--no-tts"],
+            ["listen-once", "--project-dir", "/tmp/project", "--no-tts", "--quiet"],
             dependencies=cli.RuntimeDependencies(
                 create_wake_backend=lambda config, force_manual=False: FakeWake(),
                 create_vad_backend=lambda config: FakeVad(),
@@ -62,7 +62,7 @@ class CliListenOnceTests(unittest.TestCase):
         captured = {}
 
         class FakeVoiceLoop:
-            def __init__(self, registry, wake, vad, stt, pi_runner, tts, preview_action="accept"):
+            def __init__(self, registry, wake, vad, stt, pi_runner, tts, preview_action="accept", feedback=None):
                 captured["preview_action"] = preview_action
                 captured["wake"] = wake
 
@@ -78,7 +78,7 @@ class CliListenOnceTests(unittest.TestCase):
             return FakeWake()
 
         exit_code, output = cli.run(
-            ["listen-once", "--manual-wake", "--preview-action", "cancel", "--no-tts"],
+            ["listen-once", "--manual-wake", "--preview-action", "cancel", "--no-tts", "--quiet"],
             dependencies=cli.RuntimeDependencies(
                 create_wake_backend=fake_wake,
                 create_vad_backend=lambda config: FakeVad(),

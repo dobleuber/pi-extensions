@@ -142,6 +142,8 @@ A safe CLI smoke test that does not dispatch to pi-agent:
 uv run roger listen-once --manual-wake --preview-action cancel --no-tts
 ```
 
+This should now print live feedback for each phase: wake detected, listening for instruction, transcribing, transcription text, and final result.
+
 A real one-cycle run uses the configured wake/VAD/STT/pi/TTS path:
 
 ```bash

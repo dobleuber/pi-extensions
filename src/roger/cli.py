@@ -11,6 +11,7 @@ from roger.benchmarks.wake_nanowakeword import ARCHITECTURES
 from roger.benchmarks.speech import build_stt_plan, build_tts_plan, build_vad_plan
 from roger.backends.factory import create_stt_backend, create_tts_backend, create_vad_backend, create_wake_backend
 from roger.config import RogerConfig
+from roger.feedback import ConsoleFeedback
 from roger.pi_rpc.runner import PiAgentRunner
 from roger.pi_rpc.sessions import PiSessionManager
 from roger.routing.registry import SessionEntry, SessionRegistry
@@ -60,6 +61,7 @@ def build_parser() -> argparse.ArgumentParser:
     listen_once.add_argument("--preview-action", choices=("accept", "cancel", "timeout"), default="accept")
     listen_once.add_argument("--offline", action="store_true", help="Use offline/Ollama pi-agent mode")
     listen_once.add_argument("--no-tts", action="store_true", help="Do not synthesize spoken output")
+    listen_once.add_argument("--quiet", action="store_true", help="Suppress live progress messages")
 
     return parser
 
@@ -85,6 +87,9 @@ def run(argv: Sequence[str] | None = None, dependencies: RuntimeDependencies | N
         wake = dependencies.create_wake_backend(config, force_manual=args.manual_wake)
         if args.manual_wake and hasattr(wake, "trigger"):
             wake.trigger()
+        feedback = None if args.quiet else ConsoleFeedback(echo=True)
+        if args.manual_wake and feedback is not None:
+            feedback.listening_for_wake(manual=True)
         loop = dependencies.voice_loop_class(
             registry,
             wake,
@@ -93,6 +98,7 @@ def run(argv: Sequence[str] | None = None, dependencies: RuntimeDependencies | N
             dependencies.create_pi_runner(config, registry, offline=args.offline),
             dependencies.create_tts_speaker(config, no_tts=args.no_tts),
             preview_action=args.preview_action,
+            feedback=feedback,
         )
         result = loop.run_once()
         return 0, _format_listen_once_result(result)
