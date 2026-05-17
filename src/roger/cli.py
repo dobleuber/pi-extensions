@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 from dataclasses import dataclass
 from pathlib import Path
+import time
 from typing import Callable, Sequence, Type
 
 from roger.config import load_config
@@ -87,11 +88,14 @@ def run(argv: Sequence[str] | None = None, dependencies: RuntimeDependencies | N
         return 0, _format_spike(args.spike, mode)
     if args.command == "listen-once":
         registry = _registry_from_config(config)
+        if not args.quiet:
+            print("Inicializando Roger...", flush=True)
         wake = dependencies.create_wake_backend(config, force_manual=args.manual_wake)
         if args.wake_threshold is not None and hasattr(wake, "threshold"):
             wake.threshold = args.wake_threshold
-        if args.wake_debug and hasattr(wake, "score_callback"):
-            wake.score_callback = _build_wake_score_callback(quiet=args.quiet, min_score=args.wake_debug_min_score)
+        if hasattr(wake, "score_callback"):
+            min_score = args.wake_debug_min_score if args.wake_debug else 1.1
+            wake.score_callback = _build_wake_score_callback(quiet=args.quiet, min_score=min_score)
         if args.manual_wake and hasattr(wake, "trigger"):
             wake.trigger()
         feedback = None if args.quiet else ConsoleFeedback(echo=True)
@@ -192,10 +196,25 @@ def _create_tts_speaker(config: RogerConfig, no_tts: bool = False):
     return SynthesizingSpeaker(create_tts_backend(config))
 
 
-def _build_wake_score_callback(quiet: bool = False, min_score: float = 0.2):
+def _build_wake_score_callback(
+    quiet: bool = False,
+    min_score: float = 0.2,
+    heartbeat_seconds: float = 2.0,
+    monotonic: Callable[[], float] = time.monotonic,
+):
+    last_heartbeat = {"value": monotonic()}
+
     def callback(score: float) -> None:
-        if not quiet and score >= min_score:
+        if quiet:
+            return
+        now = monotonic()
+        if score >= min_score:
             print(f"wake score={score:.3f}", flush=True)
+            last_heartbeat["value"] = now
+            return
+        if heartbeat_seconds > 0 and now - last_heartbeat["value"] >= heartbeat_seconds:
+            print("Escuchando wake word...", flush=True)
+            last_heartbeat["value"] = now
 
     return callback
 

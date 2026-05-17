@@ -40,6 +40,23 @@ class CliListenOnceTests(unittest.TestCase):
 
         self.assertIn("wake score=0.010", output.getvalue())
 
+    def test_wake_score_callback_prints_periodic_heartbeat(self):
+        now = iter([0.0, 0.0, 0.5, 2.1])
+        callback = cli._build_wake_score_callback(
+            quiet=False,
+            min_score=1.1,
+            heartbeat_seconds=2.0,
+            monotonic=lambda: next(now),
+        )
+        output = io.StringIO()
+
+        with redirect_stdout(output):
+            callback(0.0)
+            callback(0.0)
+            callback(0.0)
+
+        self.assertIn("Escuchando wake word", output.getvalue())
+
     def test_listen_once_handles_keyboard_interrupt_without_traceback(self):
         class InterruptingVoiceLoop:
             def __init__(self, *args, **kwargs):
@@ -91,6 +108,34 @@ class CliListenOnceTests(unittest.TestCase):
         self.assertIn("status: complete", output)
         self.assertIn("dispatched: yes", output)
         self.assertIn("Hecho", output)
+
+    def test_listen_once_prints_initialization_feedback_before_waiting(self):
+        class FakeVoiceLoop:
+            def __init__(self, *args, **kwargs):
+                pass
+
+            def run_once(self):
+                return type("Result", (), {
+                    "status": "listening",
+                    "dispatched": False,
+                    "message": "",
+                })()
+
+        stdout = io.StringIO()
+        with redirect_stdout(stdout):
+            cli.run(
+                ["listen-once", "--no-tts"],
+                dependencies=cli.RuntimeDependencies(
+                    create_wake_backend=lambda config, force_manual=False: FakeWake(),
+                    create_vad_backend=lambda config: FakeVad(),
+                    create_stt_backend=lambda config: FakeStt(),
+                    create_pi_runner=lambda config, registry, offline=False: FakeRunner(),
+                    create_tts_speaker=lambda config, no_tts=False: FakeSpeaker(),
+                    voice_loop_class=FakeVoiceLoop,
+                ),
+            )
+
+        self.assertIn("Inicializando Roger", stdout.getvalue())
 
     def test_listen_once_supports_manual_wake_and_cancel_preview(self):
         captured = {}
