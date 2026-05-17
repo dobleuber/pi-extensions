@@ -92,3 +92,10 @@
 - [x] 12.2 Add `--max-cycles` for deterministic smoke tests and bounded manual verification.
 - [x] 12.3 Add clean daemon interrupt handling and final cycle/dispatch summary.
 - [x] 12.4 Add daemon tests and documentation for real end-to-end operation.
+
+## 13. Siri-like Floating Overlay
+
+- [x] 13.1 Add an always-on-top floating overlay for active Roger state.
+- [x] 13.2 Show wake/listening, transcript, execution, and result states in the overlay.
+- [x] 13.3 Wire the overlay into `listen-once` and `daemon` by default with `--no-overlay` opt-out.
+- [x] 13.4 Add an `overlay-demo` command for manual visual verification without voice/pi execution.

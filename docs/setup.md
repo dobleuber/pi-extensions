@@ -150,6 +150,12 @@ A real one-cycle run uses the configured wake/VAD/STT/pi/TTS path:
 uv run roger listen-once
 ```
 
+To verify the Siri-like floating overlay without voice or pi execution:
+
+```bash
+uv run roger overlay-demo --transcript "corre pwd" --result "El directorio actual es ~/Projects/personal/pi-extensions"
+```
+
 For continuous operation, run Roger as a daemon:
 
 ```bash
@@ -166,6 +172,12 @@ For bounded testing, stop after one wake/instruction cycle:
 
 ```bash
 uv run roger daemon --max-cycles 1 --no-tts
+```
+
+The floating overlay is enabled by default for `listen-once` and `daemon`. Disable it with `--no-overlay` if needed:
+
+```bash
+uv run roger daemon --no-overlay --no-tts
 ```
 
 Stop an unbounded daemon with `Ctrl+C`; Roger exits cleanly and prints a cycle/dispatch summary.

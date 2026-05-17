@@ -17,6 +17,7 @@ from roger.config import RogerConfig
 from roger.daemon import RogerDaemon
 from roger.feedback import CompositeFeedback, ConsoleFeedback
 from roger.feedback_system import SystemFeedback
+from roger.overlay import OverlayFeedback
 from roger.pi_rpc.runner import PiAgentRunner
 from roger.pi_rpc.sessions import PiSessionManager
 from roger.routing.registry import SessionEntry, SessionRegistry
@@ -36,6 +37,7 @@ class RuntimeDependencies:
     create_stt_backend: Callable = create_stt_backend
     create_pi_runner: Callable = None
     create_tts_speaker: Callable = None
+    create_overlay_feedback: Callable = None
     voice_loop_class: Type = VoiceLoop
 
     def __post_init__(self):
@@ -43,6 +45,8 @@ class RuntimeDependencies:
             object.__setattr__(self, "create_pi_runner", _create_pi_runner)
         if self.create_tts_speaker is None:
             object.__setattr__(self, "create_tts_speaker", _create_tts_speaker)
+        if self.create_overlay_feedback is None:
+            object.__setattr__(self, "create_overlay_feedback", _create_overlay_feedback)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -69,6 +73,7 @@ def build_parser() -> argparse.ArgumentParser:
     listen_once.add_argument("--offline", action="store_true", help="Use offline/Ollama pi-agent mode")
     listen_once.add_argument("--no-tts", action="store_true", help="Do not synthesize spoken output")
     listen_once.add_argument("--quiet", action="store_true", help="Suppress live progress messages")
+    listen_once.add_argument("--no-overlay", action="store_true", help="Disable the floating desktop overlay")
     listen_once.add_argument("--wake-threshold", type=float, default=None, help="Override wake detection threshold for this run")
     listen_once.add_argument("--wake-debug", action="store_true", help="Print NanoWakeWord scores while waiting")
     listen_once.add_argument("--wake-debug-min-score", type=float, default=0.2, help="Minimum score printed by --wake-debug")
@@ -81,6 +86,7 @@ def build_parser() -> argparse.ArgumentParser:
     daemon.add_argument("--offline", action="store_true", help="Use offline/Ollama pi-agent mode")
     daemon.add_argument("--no-tts", action="store_true", help="Do not synthesize spoken output")
     daemon.add_argument("--quiet", action="store_true", help="Suppress console and desktop feedback")
+    daemon.add_argument("--no-overlay", action="store_true", help="Disable the floating desktop overlay")
     daemon.add_argument("--wake-threshold", type=float, default=None, help="Override wake detection threshold for this run")
     daemon.add_argument("--wake-debug", action="store_true", help="Print NanoWakeWord scores while waiting")
     daemon.add_argument("--wake-debug-min-score", type=float, default=0.2, help="Minimum score printed by --wake-debug")
@@ -100,6 +106,12 @@ def build_parser() -> argparse.ArgumentParser:
     task.add_argument("--project-dir", type=Path, default=Path.cwd(), help="Current project directory")
     task.add_argument("--offline", action="store_true", help="Use offline/Ollama pi-agent mode")
     task.add_argument("--no-tts", action="store_true", help="Do not synthesize spoken output")
+
+    overlay_demo = subcommands.add_parser("overlay-demo", help="Show the floating Roger overlay with sample content")
+    overlay_demo.add_argument("--config", type=Path, default=None, help="Path to roger TOML config")
+    overlay_demo.add_argument("--project-dir", type=Path, default=Path.cwd(), help="Current project directory")
+    overlay_demo.add_argument("--transcript", default="corre pwd y dime el directorio actual")
+    overlay_demo.add_argument("--result", default="Listo")
 
     return parser
 
@@ -145,6 +157,14 @@ def run(argv: Sequence[str] | None = None, dependencies: RuntimeDependencies | N
         registry = _registry_from_config(config)
         result = _run_typed_task(args, config, registry, dependencies)
         return 0, _format_task_result(result)
+    if args.command == "overlay-demo":
+        feedback = dependencies.create_overlay_feedback(config)
+        feedback.wake_detected("hola roger", 1.0)
+        feedback.capturing_instruction()
+        feedback.transcription_ready(args.transcript)
+        feedback.dispatching("current-project")
+        feedback.completed("complete", args.result)
+        return 0, "overlay demo sent\n"
 
     return 2, f"Unsupported command: {args.command}\n"
 
@@ -218,10 +238,7 @@ def _build_voice_loop(args, config: RogerConfig, dependencies: RuntimeDependenci
         wake.threshold = args.wake_threshold
     if args.wake_debug and hasattr(wake, "score_callback"):
         wake.score_callback = _build_wake_score_callback(quiet=args.quiet, min_score=args.wake_debug_min_score)
-    feedback = None if args.quiet else CompositeFeedback([
-        ConsoleFeedback(echo=True, show_waiting=False),
-        SystemFeedback(),
-    ])
+    feedback = None if args.quiet else CompositeFeedback(_feedback_sinks(args, config, dependencies))
     loop = dependencies.voice_loop_class(
         registry,
         wake,
@@ -340,6 +357,17 @@ def _create_tts_speaker(config: RogerConfig, no_tts: bool = False):
     if no_tts:
         return NoopSpeaker()
     return SynthesizingSpeaker(create_tts_backend(config))
+
+
+def _create_overlay_feedback(config: RogerConfig):
+    return OverlayFeedback()
+
+
+def _feedback_sinks(args, config: RogerConfig, dependencies: RuntimeDependencies):
+    sinks = [ConsoleFeedback(echo=True, show_waiting=False), SystemFeedback()]
+    if not getattr(args, "no_overlay", False):
+        sinks.append(dependencies.create_overlay_feedback(config))
+    return sinks
 
 
 def _build_wake_score_callback(quiet: bool = False, min_score: float = 0.2):
