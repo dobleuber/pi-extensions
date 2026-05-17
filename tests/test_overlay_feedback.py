@@ -34,6 +34,12 @@ class OverlayFeedbackTests(unittest.TestCase):
         self.assertGreaterEqual(overlay.title_font_px, 34)
         self.assertGreaterEqual(overlay.body_font_px, 32)
 
+    def test_layer_shell_overlay_uses_pango_font_descriptions(self):
+        overlay = GtkLayerShellFloatingOverlay()
+
+        self.assertEqual(overlay.title_font_description, "Sans Bold 36")
+        self.assertEqual(overlay.body_font_description, "Sans 34")
+
     def test_overlay_feedback_shows_siri_like_phases(self):
         overlay = FakeOverlay()
         feedback = OverlayFeedback(overlay)

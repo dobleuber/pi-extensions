@@ -156,7 +156,7 @@ To verify the Siri-like floating overlay without voice or pi execution:
 uv run roger overlay-demo --transcript "corre pwd" --result "El directorio actual es ~/Projects/personal/pi-extensions" --duration 8
 ```
 
-On Omarchy/Hyprland, the overlay uses `gtk-layer-shell` as a Wayland layer surface so it behaves like desktop UI rather than a normal app window. It defaults to a large readable surface (`1100x360`, title 36px, body 34px) and falls back to Tk only when the layer-shell stack is unavailable.
+On Omarchy/Hyprland, the overlay uses `gtk-layer-shell` as a Wayland layer surface so it behaves like desktop UI rather than a normal app window. It defaults to a large readable surface (`1100x360`, title 36pt, body 34pt) and applies fonts with Pango font descriptions instead of relying only on CSS. It falls back to Tk only when the layer-shell stack is unavailable.
 
 For continuous operation, run Roger as a daemon:
 

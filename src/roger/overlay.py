@@ -90,6 +90,8 @@ class TkFloatingOverlay:
         self.height = height
         self.title_font_px = title_font_px
         self.body_font_px = body_font_px
+        self.title_font_description = f"Sans Bold {title_font_px}"
+        self.body_font_description = f"Sans {body_font_px}"
         self._queue: Queue[OverlayMessage] = Queue()
         self._started = False
         self._disabled = False
@@ -199,6 +201,8 @@ class GtkLayerShellFloatingOverlay:
         self.height = height
         self.title_font_px = title_font_px
         self.body_font_px = body_font_px
+        self.title_font_description = f"Sans Bold {title_font_px}"
+        self.body_font_description = f"Sans {body_font_px}"
         self._queue: Queue[OverlayMessage] = Queue()
         self._started = False
         self._disabled = False
@@ -222,7 +226,7 @@ class GtkLayerShellFloatingOverlay:
 
             gi.require_version("Gtk", "3.0")
             gi.require_version("GtkLayerShell", "0.1")
-            from gi.repository import Gdk, GLib, Gtk, GtkLayerShell
+            from gi.repository import Gdk, GLib, Gtk, GtkLayerShell, Pango
         except Exception:
             self._fallback_to_tk()
             return
@@ -281,11 +285,13 @@ class GtkLayerShellFloatingOverlay:
 
             title_label = Gtk.Label(label="Roger")
             title_label.set_name("roger-title")
+            title_label.modify_font(Pango.FontDescription.from_string(self.title_font_description))
             title_label.set_xalign(0)
             frame.pack_start(title_label, False, False, 0)
 
             body_label = Gtk.Label(label="")
             body_label.set_name("roger-body")
+            body_label.modify_font(Pango.FontDescription.from_string(self.body_font_description))
             body_label.set_xalign(0)
             body_label.set_yalign(0)
             body_label.set_line_wrap(True)
