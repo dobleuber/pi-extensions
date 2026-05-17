@@ -34,6 +34,11 @@ class SttConfig:
 class TtsConfig:
     backend: str = "kokoro"
     voice: str = "spanish-default"
+    repo_id: str = "hexgrad/Kokoro-82M"
+    config_path: Path | None = None
+    model_path: Path | None = None
+    voice_path: Path | None = None
+    local_files_only: bool = True
 
 
 @dataclass(frozen=True)
@@ -121,6 +126,8 @@ def _merge_dataclass(instance: Any, values: dict[str, Any]) -> Any:
     for key, value in values.items():
         current = getattr(instance, key, None)
         if isinstance(current, Path):
+            converted[key] = Path(value).expanduser()
+        elif current is None and key.endswith("_path") and value is not None:
             converted[key] = Path(value).expanduser()
         else:
             converted[key] = value

@@ -28,6 +28,7 @@ class RogerCliTests(unittest.TestCase):
         self.assertIn("wake: nanowakeword", output)
         self.assertIn("target: hola roger", output)
         self.assertIn("wake threshold: 0.85", output)
+        self.assertIn("tts local files only: True", output)
         self.assertIn("sessions: current-project, system", output)
 
     def test_spike_command_can_dry_run_each_spike(self):

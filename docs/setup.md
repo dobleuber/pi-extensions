@@ -150,7 +150,20 @@ A real one-cycle run uses the configured wake/VAD/STT/pi/TTS path:
 uv run roger listen-once
 ```
 
-For early testing, keep `--no-tts` if you only want textual output. Without `--no-tts`, Roger now plays the synthesized Kokoro response through the local audio output.
+For early testing, keep `--no-tts` if you only want textual output. Without `--no-tts`, Roger plays the synthesized Kokoro response through the local audio output.
+
+Roger uses Kokoro local files by default (`speech.tts.local_files_only = true`) and resolves the model from the Hugging Face cache without network calls. If needed, pin explicit paths in `roger.toml`:
+
+```toml
+[speech.tts]
+backend = "kokoro"
+voice = "ef_dora"
+repo_id = "hexgrad/Kokoro-82M"
+local_files_only = true
+config_path = "~/.cache/huggingface/hub/models--hexgrad--Kokoro-82M/snapshots/<revision>/config.json"
+model_path = "~/.cache/huggingface/hub/models--hexgrad--Kokoro-82M/snapshots/<revision>/kokoro-v1_0.pth"
+voice_path = "~/.cache/huggingface/hub/models--hexgrad--Kokoro-82M/snapshots/<revision>/voices/ef_dora.pt"
+```
 
 To validate real pi-agent execution without microphone/STT uncertainty, use a typed task:
 

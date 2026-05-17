@@ -229,19 +229,71 @@ class RealAdapterBehaviorTests(unittest.TestCase):
             output = types.SimpleNamespace(audio=FakeTensor())
 
         class KPipeline:
-            def __init__(self, lang_code, device=None):
+            def __init__(self, lang_code, repo_id=None, device=None):
                 self.lang_code = lang_code
 
             def __call__(self, text, voice=None, speed=1):
                 yield Result()
 
         module = types.SimpleNamespace(KPipeline=KPipeline)
-        adapter = KokoroTtsAdapter(import_module=lambda _: module, voice="ef_dora")
+        adapter = KokoroTtsAdapter(import_module=lambda _: module, voice="ef_dora", local_files_only=False)
 
         speech = adapter.synthesize("Hola")
 
         self.assertEqual(speech.audio, b"audio")
         self.assertEqual(speech.sample_rate, 24_000)
+
+    def test_kokoro_uses_local_model_config_and_voice_when_requested(self):
+        import tempfile
+        import warnings
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            config = root / "config.json"
+            model = root / "kokoro-v1_0.pth"
+            voice = root / "voices" / "ef_dora.pt"
+            voice.parent.mkdir()
+            config.write_text("{}", encoding="utf-8")
+            model.write_bytes(b"model")
+            voice.write_bytes(b"voice")
+
+            calls = {}
+
+            class KModel:
+                def __init__(self, repo_id=None, config=None, model=None):
+                    warnings.warn("dropout option adds dropout after all but last recurrent layer", UserWarning)
+                    calls["model"] = {"repo_id": repo_id, "config": config, "model": model}
+
+                def eval(self):
+                    return self
+
+            class KPipeline:
+                def __init__(self, lang_code, repo_id=None, model=True, device=None):
+                    calls["pipeline"] = {"repo_id": repo_id, "model": model}
+
+                def __call__(self, text, voice=None, speed=1):
+                    calls["voice"] = voice
+                    return []
+
+            module = types.SimpleNamespace(KModel=KModel, KPipeline=KPipeline)
+            adapter = KokoroTtsAdapter(
+                import_module=lambda _: module,
+                voice="ef_dora",
+                config_path=config,
+                model_path=model,
+                voice_path=voice,
+                local_files_only=True,
+            )
+
+            with warnings.catch_warnings(record=True) as captured:
+                warnings.simplefilter("always")
+                adapter.synthesize("Hola")
+
+        self.assertEqual(calls["model"]["repo_id"], "hexgrad/Kokoro-82M")
+        self.assertEqual(calls["model"]["config"], str(config))
+        self.assertEqual(calls["model"]["model"], str(model))
+        self.assertEqual(calls["voice"], str(voice))
+        self.assertEqual(captured, [])
 
 
 if __name__ == "__main__":

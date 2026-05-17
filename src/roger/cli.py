@@ -165,6 +165,7 @@ def _format_health(config) -> str:
         f"vad: {config.speech.vad.backend}",
         f"stt: {config.speech.stt.backend}",
         f"tts: {config.speech.tts.backend}",
+        f"tts local files only: {config.speech.tts.local_files_only}",
         f"online model provider: {config.models.online.provider}",
         f"offline model provider: {config.models.offline.provider}",
         f"sessions: {sessions}",

@@ -6,6 +6,7 @@ __pycache__/
 .venv/
 .venv-nanowakeword/
 models/
+.roger/
 benchmarks/data/audio/
 benchmarks/data/wake/
 NwwResourcesModel/

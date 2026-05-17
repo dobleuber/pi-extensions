@@ -21,6 +21,8 @@ class RogerConfigTests(unittest.TestCase):
         self.assertEqual(config.speech.vad.backend, "silero")
         self.assertEqual(config.speech.stt.backend, "faster-whisper")
         self.assertEqual(config.speech.tts.backend, "kokoro")
+        self.assertEqual(config.speech.tts.repo_id, "hexgrad/Kokoro-82M")
+        self.assertTrue(config.speech.tts.local_files_only)
         self.assertEqual(config.models.online.provider, "pi-default")
         self.assertEqual(config.models.offline.provider, "ollama")
         self.assertIn("system", config.sessions)
@@ -35,6 +37,7 @@ class RogerConfigTests(unittest.TestCase):
                     """
                     [speech.tts]
                     backend = "piper"
+                    local_files_only = false
 
                     [speech.wake]
                     threshold = 0.82
@@ -49,6 +52,7 @@ class RogerConfigTests(unittest.TestCase):
             config = load_config(config_path, project_dir=Path("/workspace/app"))
 
         self.assertEqual(config.speech.tts.backend, "piper")
+        self.assertFalse(config.speech.tts.local_files_only)
         self.assertEqual(config.speech.wake.threshold, 0.82)
         self.assertEqual(config.speech.wake.target_phrase, "hola roger")
         self.assertEqual(config.sessions["system"].cwd, Path("/tmp"))

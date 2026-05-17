@@ -39,5 +39,13 @@ def create_stt_backend(config: RogerConfig):
 
 def create_tts_backend(config: RogerConfig):
     if config.speech.tts.backend == "kokoro":
-        return KokoroTtsAdapter()
+        voice = "ef_dora" if config.speech.tts.voice == "spanish-default" else config.speech.tts.voice
+        return KokoroTtsAdapter(
+            voice=voice,
+            repo_id=config.speech.tts.repo_id,
+            config_path=config.speech.tts.config_path,
+            model_path=config.speech.tts.model_path,
+            voice_path=config.speech.tts.voice_path,
+            local_files_only=config.speech.tts.local_files_only,
+        )
     raise ValueError(f"Unsupported TTS backend: {config.speech.tts.backend}")
