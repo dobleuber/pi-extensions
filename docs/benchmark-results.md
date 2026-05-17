@@ -58,4 +58,5 @@ User live-tested the LSTM model and reported it works well
 Silero VAD silence smoke test returns no speech timestamps
 faster-whisper tiny silence transcription smoke test returns empty text
 Kokoro `ef_dora` Spanish synthesis smoke test produced audio bytes at 24 kHz
+pi RPC `get_state` smoke test returned the configured default model and session state
 ```

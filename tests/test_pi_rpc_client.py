@@ -35,6 +35,7 @@ class FakeProcess:
 class PiRpcClientTests(unittest.TestCase):
     def test_prompt_sends_jsonl_command_and_returns_matching_response(self):
         process = FakeProcess([
+            json.dumps({"type": "extension_ui_request", "method": "notify", "message": "startup"}) + "\n",
             json.dumps({"type": "response", "id": "req-1", "command": "prompt", "success": True}) + "\n"
         ])
         client = PiRpcClient(process_factory=lambda _: process)
