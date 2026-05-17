@@ -7,12 +7,12 @@
 
 ## 2. Wake Word Spike
 
-- [ ] 2.1 Create NanoWakeWord training configuration for `target_phrase: "hola roger"` with fixed positives.
-- [ ] 2.2 Add automatic adversarial, phoneme adversarial, and manual nearby negatives for `hola roger`.
-- [ ] 2.3 Train or document reproducible training for NanoWakeWord GRU.
-- [ ] 2.4 Train or document reproducible training for NanoWakeWord LSTM.
-- [ ] 2.5 Train or document reproducible training for NanoWakeWord TCN.
-- [ ] 2.6 Build a benchmark harness that measures false positives, false negatives, activation latency, idle CPU, memory usage, and training effort for GRU, LSTM, and TCN.
+- [x] 2.1 Create NanoWakeWord training configuration for `target_phrase: "hola roger"` with fixed positives.
+- [x] 2.2 Add automatic adversarial, phoneme adversarial, and manual nearby negatives for `hola roger`.
+- [x] 2.3 Train or document reproducible training for NanoWakeWord GRU.
+- [x] 2.4 Train or document reproducible training for NanoWakeWord LSTM.
+- [x] 2.5 Train or document reproducible training for NanoWakeWord TCN.
+- [x] 2.6 Build a benchmark harness that measures false positives, false negatives, activation latency, idle CPU, memory usage, and training effort for GRU, LSTM, and TCN.
 - [ ] 2.7 Select the default wake architecture or record why a fallback trigger/openWakeWord baseline is required.
 
 ## 3. Speech Backend Spikes

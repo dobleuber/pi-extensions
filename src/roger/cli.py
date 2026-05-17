@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Sequence
 
 from roger.config import load_config
+from roger.benchmarks.wake_nanowakeword import write_training_configs
 
 
 SPIKES = ("wake", "vad", "stt", "tts")
@@ -21,6 +22,8 @@ def build_parser() -> argparse.ArgumentParser:
     spike = subcommands.add_parser("spike", help="Run or dry-run an implementation spike")
     spike.add_argument("spike", choices=SPIKES)
     spike.add_argument("--dry-run", action="store_true", help="Print spike plan without executing heavy dependencies")
+    spike.add_argument("--write-configs", action="store_true", help="Write generated benchmark/training configs when supported")
+    spike.add_argument("--output-dir", type=Path, default=Path("configs/nanowakeword"), help="Output directory for generated configs")
     spike.add_argument("--config", type=Path, default=None, help="Path to roger TOML config")
     spike.add_argument("--project-dir", type=Path, default=Path.cwd(), help="Current project directory")
 
@@ -36,6 +39,10 @@ def run(argv: Sequence[str] | None = None) -> tuple[int, str]:
     if args.command == "health":
         return 0, _format_health(config)
     if args.command == "spike":
+        if args.spike == "wake" and args.write_configs:
+            paths = write_training_configs(config.speech.wake.target_phrase, args.output_dir)
+            path_list = "\n".join(f"- {path}" for path in paths)
+            return 0, f"wake spike: wrote {len(paths)} NanoWakeWord configs\n{path_list}\n"
         mode = "dry-run" if args.dry_run else "run"
         return 0, _format_spike(args.spike, mode)
 

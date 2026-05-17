@@ -38,6 +38,25 @@ class RogerCliTests(unittest.TestCase):
                 self.assertIn(f"{spike} spike", output)
                 self.assertIn("dry-run", output)
 
+    def test_wake_spike_can_write_nanowakeword_configs(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            output_dir = Path(tmp) / "configs"
+            exit_code, output = run([
+                "spike",
+                "wake",
+                "--write-configs",
+                "--output-dir",
+                str(output_dir),
+            ])
+
+            self.assertEqual(exit_code, 0)
+            self.assertIn("wrote 3 NanoWakeWord configs", output)
+            self.assertTrue((output_dir / "hola_roger_gru.json").exists())
+            self.assertTrue((output_dir / "hola_roger_lstm.json").exists())
+            self.assertTrue((output_dir / "hola_roger_tcn.json").exists())
+
 
 if __name__ == "__main__":
     unittest.main()

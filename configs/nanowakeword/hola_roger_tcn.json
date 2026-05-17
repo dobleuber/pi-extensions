@@ -1,0 +1,101 @@
+{
+  "model_name": "hola_roger_tcn",
+  "output_dir": "./models/wake/nanowakeword",
+  "positive_data_path": "./benchmarks/data/wake/hola_roger/positive",
+  "negative_data_path": "./benchmarks/data/wake/hola_roger/negative",
+  "background_paths": [
+    "./benchmarks/data/wake/hola_roger/background_noise"
+  ],
+  "rir_paths": [],
+  "model_type": "tcn",
+  "target_phrase": "hola roger",
+  "data_generation_tasks": [
+    {
+      "name": "positive_train",
+      "enabled": true,
+      "output_dir": "benchmarks/data/wake/hola_roger/positive",
+      "num_samples": 2500,
+      "file_prefix": "pos",
+      "text_source": {
+        "type": "fixed_phrase",
+        "phrase": "hola roger"
+      }
+    },
+    {
+      "name": "positive_validation",
+      "enabled": true,
+      "output_dir": "benchmarks/data/wake/hola_roger/positive_val",
+      "num_samples": 2000,
+      "file_prefix": "pos_val",
+      "text_source": {
+        "type": "fixed_phrase",
+        "phrase": "hola roger"
+      }
+    },
+    {
+      "name": "automatic_adversarial_negatives",
+      "enabled": true,
+      "output_dir": "benchmarks/data/wake/hola_roger/negative",
+      "num_samples": 5000,
+      "file_prefix": "neg_auto",
+      "text_source": {
+        "type": "auto_adversarial",
+        "base_phrase": "hola roger",
+        "include_input_words": true,
+        "include_partial_phrase": true,
+        "multi_word_prob": 0.5,
+        "max_multi_word_len": 3
+      }
+    },
+    {
+      "name": "phoneme_hard_negatives",
+      "enabled": true,
+      "output_dir": "benchmarks/data/wake/hola_roger/negative_phoneme",
+      "num_samples": 3000,
+      "file_prefix": "neg_ph",
+      "text_source": {
+        "type": "phoneme_adversarial",
+        "base_phrase": "hola roger",
+        "min_distance": 0.3
+      }
+    },
+    {
+      "name": "manual_nearby_negatives",
+      "enabled": true,
+      "output_dir": "benchmarks/data/wake/hola_roger/negative",
+      "num_samples": 60,
+      "file_prefix": "neg_manual",
+      "text_source": {
+        "type": "from_list",
+        "phrases": [
+          "hola",
+          "roger",
+          "oye roger",
+          "hola rojo",
+          "hola royer",
+          "ola roger"
+        ],
+        "repeat_each": 10
+      }
+    }
+  ],
+  "augmentation_settings": {
+    "gain_prob": 1.0,
+    "min_gain_in_db": -2.0,
+    "max_gain_in_db": 2.0,
+    "pitch_prob": 0.3,
+    "min_pitch_semitones": -1.0,
+    "max_pitch_semitones": 1.0,
+    "min_snr_in_db": 15.0,
+    "max_snr_in_db": 35.0,
+    "rir_prob": 0.0
+  },
+  "benchmark_metrics": [
+    "false_positives",
+    "false_negatives",
+    "activation_latency_ms",
+    "idle_cpu_percent",
+    "rss_mb",
+    "training_duration_seconds"
+  ]
+}
