@@ -40,6 +40,14 @@ class StatefulOverlayFeedbackTests(unittest.TestCase):
         self.assertEqual(overlay.calls[0]["title"], "Roger activo")
         self.assertIn("Te escucho", overlay.calls[0]["body"])
 
+    def test_goodbye_closes_overlay_quickly(self):
+        overlay = FakeOverlay()
+        feedback = StatefulOverlayFeedback(overlay)
+
+        feedback.completed("goodbye", "Hasta luego.")
+
+        self.assertLessEqual(overlay.calls[-1]["timeout_ms"], 3000)
+
 
 if __name__ == "__main__":
     unittest.main()
