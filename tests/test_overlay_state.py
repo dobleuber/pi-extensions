@@ -48,6 +48,14 @@ class StatefulOverlayFeedbackTests(unittest.TestCase):
 
         self.assertLessEqual(overlay.calls[-1]["timeout_ms"], 3000)
 
+    def test_no_input_closes_overlay_quickly(self):
+        overlay = FakeOverlay()
+        feedback = StatefulOverlayFeedback(overlay)
+
+        feedback.completed("no_input", "")
+
+        self.assertLessEqual(overlay.calls[-1]["timeout_ms"], 1500)
+
 
 if __name__ == "__main__":
     unittest.main()

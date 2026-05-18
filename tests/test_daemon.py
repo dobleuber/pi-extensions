@@ -17,8 +17,9 @@ class FakeLoop:
 
 
 class Result:
-    def __init__(self, dispatched=False):
+    def __init__(self, dispatched=False, status="complete"):
         self.dispatched = dispatched
+        self.status = status
 
 
 class RogerDaemonTests(unittest.TestCase):
@@ -60,6 +61,15 @@ class RogerDaemonTests(unittest.TestCase):
         daemon.run(max_cycles=2, result_hold_seconds=8)
 
         self.assertEqual(sleeps, [8, 8])
+
+    def test_daemon_does_not_hold_no_input_cycles(self):
+        loop = FakeLoop([Result(status="no_input"), Result(dispatched=True)])
+        sleeps = []
+        daemon = RogerDaemon(loop=loop, sleep=sleeps.append)
+
+        daemon.run(max_cycles=2, result_hold_seconds=8)
+
+        self.assertEqual(sleeps, [8])
 
 
 if __name__ == "__main__":

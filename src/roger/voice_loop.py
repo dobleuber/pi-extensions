@@ -65,6 +65,15 @@ class VoiceLoop:
         transcription = self.stt.transcribe(audio)
         if self.feedback is not None:
             self.feedback.transcription_ready(transcription.text)
+        if not transcription.text.strip():
+            if self.feedback is not None:
+                self.feedback.completed("no_input", "")
+            return VoiceLoopResult(
+                state=VoiceLoopState.LISTENING,
+                status="no_input",
+                dispatched=False,
+                message="",
+            )
         if self.dialogue_control.decide(transcription.text) == DialogueDecision.GOODBYE:
             message = "Hasta luego."
             self.tts.speak(message)

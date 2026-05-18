@@ -48,7 +48,7 @@ class RogerDaemon:
                 cycles += 1
                 if getattr(result, "dispatched", False):
                     dispatched += 1
-                if result_hold_seconds > 0:
+                if result_hold_seconds > 0 and getattr(result, "status", "") not in {"no_input", "goodbye"}:
                     self.sleep(result_hold_seconds)
         except KeyboardInterrupt:
             return DaemonResult(status="interrupted", cycles=cycles, dispatched=dispatched)

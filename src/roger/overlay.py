@@ -64,7 +64,12 @@ class StatefulOverlayFeedback:
 
     def completed(self, status: str, message: str = "") -> None:
         self.result = message or status
-        timeout_ms = 2_500 if status == "goodbye" else 15_000
+        if status == "no_input":
+            timeout_ms = 1_000
+        elif status == "goodbye":
+            timeout_ms = 2_500
+        else:
+            timeout_ms = 15_000
         self.overlay.show("Resultado", self._result_body(), state=status, timeout_ms=timeout_ms)
 
     def _transcript_body(self, extra: str | None = None) -> str:
