@@ -101,6 +101,7 @@ def build_parser() -> argparse.ArgumentParser:
     daemon.add_argument("--wake-debug-min-score", type=float, default=0.2, help="Minimum score printed by --wake-debug")
     daemon.add_argument("--max-cycles", type=int, default=None, help="Stop after N wake/instruction cycles; useful for tests")
     daemon.add_argument("--result-hold-seconds", type=float, default=10.0, help="Keep the result visible before listening for the next wake")
+    daemon.add_argument("--quick-close-seconds", type=float, default=2.5, help="Short pause after goodbye/no-input before listening again")
 
     wake_file = subcommands.add_parser("wake-file", help="Score a recorded WAV file with the configured wake adapter")
     wake_file.add_argument("audio", type=Path, help="16 kHz mono PCM WAV containing the wake phrase")
@@ -180,6 +181,7 @@ def run(argv: Sequence[str] | None = None, dependencies: RuntimeDependencies | N
         result = RogerDaemon(loop=loop, before_cycle=before_cycle, on_error=on_error).run(
             max_cycles=args.max_cycles,
             result_hold_seconds=args.result_hold_seconds,
+            quick_close_seconds=args.quick_close_seconds,
         )
         exit_code = 130 if result.status == "interrupted" else 0
         return exit_code, _format_daemon_result(result)

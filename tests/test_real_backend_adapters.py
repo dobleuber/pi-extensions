@@ -188,6 +188,44 @@ class RealAdapterBehaviorTests(unittest.TestCase):
         self.assertEqual(audio.sample_rate, 16_000)
         self.assertGreater(len(audio.pcm16), 0)
 
+    def test_silero_capture_returns_empty_when_no_speech_starts_before_timeout(self):
+        import numpy as np
+
+        class FakeVadIterator:
+            def __init__(self, model, **kwargs):
+                pass
+
+            def __call__(self, chunk):
+                return None
+
+        class Stream:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+            def read(self, blocksize):
+                return np.zeros((blocksize, 1), dtype=np.int16), None
+
+        times = iter([0.0, 0.5, 1.1])
+        module = types.SimpleNamespace(
+            load_silero_vad=lambda onnx=True: "model",
+            VADIterator=FakeVadIterator,
+        )
+        sounddevice = types.SimpleNamespace(InputStream=lambda **kwargs: Stream())
+        adapter = SileroVadAdapter(
+            import_module=lambda _: module,
+            sounddevice_module=sounddevice,
+            no_speech_timeout_seconds=1.0,
+            monotonic=lambda: next(times),
+        )
+
+        audio = adapter.capture_until_silence()
+
+        self.assertEqual(audio.pcm16, b"")
+        self.assertEqual(audio.sample_rate, 16_000)
+
     def test_faster_whisper_transcribes_audio_path(self):
         class Segment:
             def __init__(self, text):

@@ -29,7 +29,12 @@ class RogerDaemon:
         self.sleep = sleep
         self.on_error = on_error
 
-    def run(self, max_cycles: int | None = None, result_hold_seconds: float = 0.0) -> DaemonResult:
+    def run(
+        self,
+        max_cycles: int | None = None,
+        result_hold_seconds: float = 0.0,
+        quick_close_seconds: float = 2.5,
+    ) -> DaemonResult:
         cycles = 0
         dispatched = 0
         try:
@@ -48,7 +53,10 @@ class RogerDaemon:
                 cycles += 1
                 if getattr(result, "dispatched", False):
                     dispatched += 1
-                if result_hold_seconds > 0 and getattr(result, "status", "") not in {"no_input", "goodbye"}:
+                status = getattr(result, "status", "")
+                if status in {"no_input", "goodbye"} and quick_close_seconds > 0:
+                    self.sleep(quick_close_seconds)
+                elif result_hold_seconds > 0:
                     self.sleep(result_hold_seconds)
         except KeyboardInterrupt:
             return DaemonResult(status="interrupted", cycles=cycles, dispatched=dispatched)

@@ -60,6 +60,15 @@ class VoiceLoop:
             self.feedback.wake_detected(detection.phrase, detection.score)
             self.feedback.capturing_instruction()
         audio = self.vad.capture_until_silence()
+        if audio.pcm16 == b"":
+            if self.feedback is not None:
+                self.feedback.completed("no_input", "")
+            return VoiceLoopResult(
+                state=VoiceLoopState.LISTENING,
+                status="no_input",
+                dispatched=False,
+                message="",
+            )
         if self.feedback is not None:
             self.feedback.transcribing()
         transcription = self.stt.transcribe(audio)

@@ -19,6 +19,7 @@ class RogerConfigTests(unittest.TestCase):
             Path("models/wake/nanowakeword/hola_roger_lstm/model/hola_roger_lstm.onnx"),
         )
         self.assertEqual(config.speech.vad.backend, "silero")
+        self.assertEqual(config.speech.vad.no_speech_timeout_seconds, 4.0)
         self.assertEqual(config.speech.stt.backend, "faster-whisper")
         self.assertEqual(config.speech.stt.model, "large-v3-turbo")
         self.assertEqual(config.speech.stt.device, "cuda")

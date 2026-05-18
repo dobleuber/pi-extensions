@@ -21,6 +21,7 @@ class BackendFactoryTests(unittest.TestCase):
         vad = create_vad_backend(config)
         self.assertIsInstance(vad, SileroVadAdapter)
         self.assertEqual(vad.max_capture_seconds, config.speech.vad.max_capture_seconds)
+        self.assertEqual(vad.no_speech_timeout_seconds, config.speech.vad.no_speech_timeout_seconds)
         self.assertEqual(vad.min_silence_duration_ms, config.speech.vad.silence_timeout_ms)
         stt = create_stt_backend(config)
         self.assertIsInstance(stt, FasterWhisperSttAdapter)

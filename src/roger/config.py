@@ -21,6 +21,7 @@ class VadConfig:
     backend: str = "silero"
     silence_timeout_ms: int = 900
     max_capture_seconds: int = 30
+    no_speech_timeout_seconds: float = 4.0
 
 
 @dataclass(frozen=True)

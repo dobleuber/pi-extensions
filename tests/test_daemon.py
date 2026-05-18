@@ -67,9 +67,9 @@ class RogerDaemonTests(unittest.TestCase):
         sleeps = []
         daemon = RogerDaemon(loop=loop, sleep=sleeps.append)
 
-        daemon.run(max_cycles=2, result_hold_seconds=8)
+        daemon.run(max_cycles=2, result_hold_seconds=8, quick_close_seconds=2.5)
 
-        self.assertEqual(sleeps, [8])
+        self.assertEqual(sleeps, [2.5, 8])
 
 
 if __name__ == "__main__":

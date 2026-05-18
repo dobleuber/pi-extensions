@@ -17,7 +17,11 @@ class Vad:
 
 
 class EmptyStt:
+    def __init__(self):
+        self.calls = 0
+
     def transcribe(self, audio):
+        self.calls += 1
         return Transcription("   ")
 
 
@@ -57,11 +61,12 @@ class VoiceLoopNoInputTests(unittest.TestCase):
         pi = Pi()
         tts = Tts()
         feedback = Feedback()
+        stt = EmptyStt()
         loop = VoiceLoop(
             SessionRegistry.default(Path("/tmp/project")),
             Wake(),
             Vad(),
-            EmptyStt(),
+            stt,
             pi,
             tts,
             feedback=feedback,
@@ -72,6 +77,7 @@ class VoiceLoopNoInputTests(unittest.TestCase):
         self.assertEqual(result.status, "no_input")
         self.assertFalse(result.dispatched)
         self.assertEqual(pi.calls, [])
+        self.assertEqual(stt.calls, 0)
         self.assertEqual(tts.spoken, [])
         self.assertEqual(feedback.completed_calls, [("no_input", "")])
 

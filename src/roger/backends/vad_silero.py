@@ -17,9 +17,11 @@ class SileroVadAdapter(OptionalDependencyMixin):
         blocksize: int = 512,
         device: str | int | None = None,
         max_capture_seconds: float = 30.0,
+        no_speech_timeout_seconds: float = 4.0,
         threshold: float = 0.5,
         min_silence_duration_ms: int = 700,
         speech_pad_ms: int = 200,
+        monotonic=time.monotonic,
     ):
         super().__init__(import_module=import_module)
         self._model = None
@@ -28,9 +30,11 @@ class SileroVadAdapter(OptionalDependencyMixin):
         self.blocksize = blocksize
         self.device = device
         self.max_capture_seconds = max_capture_seconds
+        self.no_speech_timeout_seconds = no_speech_timeout_seconds
         self.threshold = threshold
         self.min_silence_duration_ms = min_silence_duration_ms
         self.speech_pad_ms = speech_pad_ms
+        self.monotonic = monotonic
 
     def capture_until_silence(self) -> AudioSegment:
         module = self._load_module()
@@ -45,7 +49,7 @@ class SileroVadAdapter(OptionalDependencyMixin):
         )
         chunks: list[np.ndarray] = []
         seen_speech = False
-        started = time.monotonic()
+        started = self.monotonic()
         with sounddevice.InputStream(
             samplerate=self.sample_rate,
             channels=1,
@@ -58,11 +62,14 @@ class SileroVadAdapter(OptionalDependencyMixin):
                 samples = audio[:, 0] if getattr(audio, "ndim", 1) > 1 else audio
                 chunks.append(np.asarray(samples, dtype=np.int16).copy())
                 event = vad_iterator(self._to_float_tensor(samples))
+                elapsed = self.monotonic() - started
                 if event and "start" in event:
                     seen_speech = True
                 if seen_speech and event and "end" in event:
                     break
-                if time.monotonic() - started >= self.max_capture_seconds:
+                if not seen_speech and elapsed >= self.no_speech_timeout_seconds:
+                    return AudioSegment(pcm16=b"", sample_rate=self.sample_rate)
+                if elapsed >= self.max_capture_seconds:
                     break
         pcm16 = np.concatenate(chunks).astype(np.int16).tobytes() if chunks else b""
         return AudioSegment(pcm16=pcm16, sample_rate=self.sample_rate)

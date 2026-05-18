@@ -120,4 +120,4 @@
 - [x] 15.5 Keep daemon alive and report cycle errors if STT/VAD/runtime failures occur.
 - [x] 15.6 Route clear general/system information tasks such as time/date questions without asking for project clarification.
 - [x] 15.7 Add `gracias Roger` as a dialogue-closing phrase that says goodbye and skips pi-agent dispatch.
-- [x] 15.8 Treat empty/no-input transcriptions as a quick-close interaction with no speech and no pi-agent dispatch.
+- [x] 15.8 Treat empty/no-input captures as a quick-close interaction with no speech, STT, or pi-agent dispatch.

@@ -184,7 +184,7 @@ Disable the overlay with `--no-overlay` if needed:
 uv run roger daemon --no-overlay --no-tts
 ```
 
-Stop an unbounded daemon with `Ctrl+C`; Roger exits cleanly and prints a cycle/dispatch summary. After each cycle with a result, the daemon waits `--result-hold-seconds` (default `10`) before accepting the next wake so the overlay result remains readable. If Roger does not hear an instruction after wake activation, it closes the overlay quickly without speaking or dispatching. To close an interaction naturally, say `gracias Roger`; Roger responds `Hasta luego` and does not dispatch that phrase to pi-agent.
+Stop an unbounded daemon with `Ctrl+C`; Roger exits cleanly and prints a cycle/dispatch summary. After each cycle with a result, the daemon waits `--result-hold-seconds` (default `10`) before accepting the next wake so the overlay result remains readable. If Roger does not hear an instruction after wake activation, Silero VAD times out after `speech.vad.no_speech_timeout_seconds` (default `4`) and Roger closes the overlay quickly without speaking, dispatching, or running STT. To close an interaction naturally, say `gracias Roger`; Roger responds `Hasta luego` and does not dispatch that phrase to pi-agent.
 
 To install Roger as an Omarchy/Hyprland autostart daemon:
 
