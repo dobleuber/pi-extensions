@@ -119,3 +119,4 @@
 - [x] 15.4 Re-exec voice commands with CUDA library paths when CTranslate2 needs local CUDA libraries.
 - [x] 15.5 Keep daemon alive and report cycle errors if STT/VAD/runtime failures occur.
 - [x] 15.6 Route clear general/system information tasks such as time/date questions without asking for project clarification.
+- [x] 15.7 Add `gracias Roger` as a dialogue-closing phrase that says goodbye and skips pi-agent dispatch.

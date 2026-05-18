@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 
 from roger.backends.interfaces import SttBackend, TtsBackend, VadBackend, WakeWordBackend
+from roger.dialogue import DialogueControl, DialogueDecision
 from roger.feedback import Feedback
 from roger.manual_loop import ManualLoop, PiRunner
 from roger.routing.registry import SessionRegistry
@@ -37,11 +38,14 @@ class VoiceLoop:
         tts: TtsBackend,
         preview_action: str = "accept",
         feedback: Feedback | None = None,
+        dialogue_control: DialogueControl | None = None,
     ):
         self.wake = wake
         self.vad = vad
         self.stt = stt
         self.feedback = feedback
+        self.tts = tts
+        self.dialogue_control = dialogue_control or DialogueControl()
         self.manual_loop = ManualLoop(registry, pi_runner=pi_runner, tts=tts, feedback=feedback)
         self.preview_action = preview_action
 
@@ -61,6 +65,17 @@ class VoiceLoop:
         transcription = self.stt.transcribe(audio)
         if self.feedback is not None:
             self.feedback.transcription_ready(transcription.text)
+        if self.dialogue_control.decide(transcription.text) == DialogueDecision.GOODBYE:
+            message = "Hasta luego."
+            self.tts.speak(message)
+            if self.feedback is not None:
+                self.feedback.completed("goodbye", message)
+            return VoiceLoopResult(
+                state=VoiceLoopState.LISTENING,
+                status="goodbye",
+                dispatched=False,
+                message=message,
+            )
         result = self.manual_loop.run_transcription(transcription.text, preview_action=self.preview_action)
         if self.feedback is not None:
             self.feedback.completed(result.status, result.message)
