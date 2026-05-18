@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import dataclass
+import os
 from pathlib import Path
+import sys
 import time
 import wave
 from typing import Callable, Sequence, Type
@@ -15,6 +17,7 @@ from roger.benchmarks.wake_nanowakeword import ARCHITECTURES
 from roger.benchmarks.speech import build_stt_plan, build_tts_plan, build_vad_plan
 from roger.backends.factory import create_stt_backend, create_tts_backend, create_vad_backend, create_wake_backend
 from roger.config import RogerConfig
+from roger.cuda_env import cuda_env_for_reexec
 from roger.daemon import RogerDaemon
 from roger.feedback import CompositeFeedback, ConsoleFeedback
 from roger.feedback_system import SystemFeedback
@@ -159,7 +162,7 @@ def run(argv: Sequence[str] | None = None, dependencies: RuntimeDependencies | N
         mode = "dry-run" if args.dry_run else "run"
         return 0, _format_spike(args.spike, mode)
     if args.command == "listen-once":
-        registry, wake, loop = _build_voice_loop(args, config, dependencies)
+        registry, wake, loop, _feedback = _build_voice_loop(args, config, dependencies)
         if args.manual_wake and hasattr(wake, "trigger"):
             wake.trigger()
         try:
@@ -168,9 +171,13 @@ def run(argv: Sequence[str] | None = None, dependencies: RuntimeDependencies | N
             return 130, "Roger interrumpido por el usuario\n"
         return 0, _format_listen_once_result(result)
     if args.command == "daemon":
-        _registry, wake, loop = _build_voice_loop(args, config, dependencies)
+        _registry, wake, loop, feedback = _build_voice_loop(args, config, dependencies)
         before_cycle = wake.trigger if args.manual_wake and hasattr(wake, "trigger") else None
-        result = RogerDaemon(loop=loop, before_cycle=before_cycle).run(
+        def on_error(error: Exception) -> None:
+            if feedback is not None:
+                feedback.completed("failed", str(error))
+
+        result = RogerDaemon(loop=loop, before_cycle=before_cycle, on_error=on_error).run(
             max_cycles=args.max_cycles,
             result_hold_seconds=args.result_hold_seconds,
         )
@@ -215,6 +222,10 @@ def run(argv: Sequence[str] | None = None, dependencies: RuntimeDependencies | N
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    if argv is None:
+        env = cuda_env_for_reexec(sys.argv)
+        if env is not None:
+            os.execvpe(sys.argv[0], sys.argv, env)
     exit_code, output = run(argv)
     print(output, end="" if output.endswith("\n") else "\n")
     return exit_code
@@ -297,7 +308,7 @@ def _build_voice_loop(args, config: RogerConfig, dependencies: RuntimeDependenci
         preview_action=args.preview_action,
         feedback=feedback,
     )
-    return registry, wake, loop
+    return registry, wake, loop, feedback
 
 
 def _score_wake_file(wake, audio_path: Path, blocksize: int = 1280) -> dict[str, object]:

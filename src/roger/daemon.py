@@ -22,10 +22,12 @@ class RogerDaemon:
         loop: Loop,
         before_cycle: Callable[[], None] | None = None,
         sleep: Callable[[float], None] = time.sleep,
+        on_error: Callable[[Exception], None] | None = None,
     ):
         self.loop = loop
         self.before_cycle = before_cycle
         self.sleep = sleep
+        self.on_error = on_error
 
     def run(self, max_cycles: int | None = None, result_hold_seconds: float = 0.0) -> DaemonResult:
         cycles = 0
@@ -34,7 +36,15 @@ class RogerDaemon:
             while max_cycles is None or cycles < max_cycles:
                 if self.before_cycle is not None:
                     self.before_cycle()
-                result = self.loop.run_once()
+                try:
+                    result = self.loop.run_once()
+                except Exception as error:
+                    if self.on_error is not None:
+                        self.on_error(error)
+                    cycles += 1
+                    if result_hold_seconds > 0:
+                        self.sleep(result_hold_seconds)
+                    continue
                 cycles += 1
                 if getattr(result, "dispatched", False):
                     dispatched += 1

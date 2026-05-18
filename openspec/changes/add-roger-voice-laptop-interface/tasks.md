@@ -116,3 +116,5 @@
 - [x] 15.1 Wire configured faster-whisper model, language, device, and compute type into the STT factory.
 - [x] 15.2 Change the default STT configuration to faster-whisper `large-v3-turbo` on CUDA with `float16` compute.
 - [x] 15.3 Expose STT model/device/compute type in `roger health`.
+- [x] 15.4 Re-exec voice commands with CUDA library paths when CTranslate2 needs local CUDA libraries.
+- [x] 15.5 Keep daemon alive and report cycle errors if STT/VAD/runtime failures occur.

@@ -29,7 +29,11 @@ class FakeSpeaker:
 
 
 class FakeOverlayFeedback:
-    pass
+    def __init__(self):
+        self.completed_calls = []
+
+    def completed(self, status, message=""):
+        self.completed_calls.append((status, message))
 
 
 class CliDaemonTests(unittest.TestCase):
@@ -169,6 +173,35 @@ class CliDaemonTests(unittest.TestCase):
         )
 
         self.assertTrue(any(isinstance(sink, SystemFeedback) for sink in captured["feedback"].sinks))
+
+    def test_daemon_reports_cycle_errors_to_overlay(self):
+        overlay = FakeOverlayFeedback()
+
+        class FailingVoiceLoop:
+            def __init__(self, *args, **kwargs):
+                self.calls = 0
+
+            def run_once(self):
+                self.calls += 1
+                if self.calls == 1:
+                    raise RuntimeError("stt failed")
+                return type("Result", (), {"dispatched": False})()
+
+        exit_code, output = cli.run(
+            ["daemon", "--max-cycles", "2", "--result-hold-seconds", "0", "--no-tts"],
+            dependencies=cli.RuntimeDependencies(
+                create_wake_backend=lambda config, force_manual=False: FakeWake(),
+                create_vad_backend=lambda config: FakeVad(),
+                create_stt_backend=lambda config: FakeStt(),
+                create_pi_runner=lambda config, registry, offline=False: FakeRunner(),
+                create_tts_speaker=lambda config, no_tts=False: FakeSpeaker(),
+                create_overlay_feedback=lambda config: overlay,
+                voice_loop_class=FailingVoiceLoop,
+            ),
+        )
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(overlay.completed_calls, [("failed", "stt failed")])
 
 
 if __name__ == "__main__":
