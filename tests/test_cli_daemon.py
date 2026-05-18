@@ -71,6 +71,7 @@ class CliDaemonTests(unittest.TestCase):
         args = parser.parse_args(["daemon"])
 
         self.assertGreaterEqual(args.result_hold_seconds, 8)
+        self.assertGreaterEqual(args.quick_close_seconds, 5)
 
     def test_daemon_manual_wake_triggers_each_cycle(self):
         wake = FakeWake()

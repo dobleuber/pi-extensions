@@ -50,7 +50,7 @@ uv run roger spike tts --dry-run
 Current local test evidence from this implementation session:
 
 ```text
-127 tests passing
+128 tests passing
 OpenSpec validation passing
 uv speech dependency group installed successfully
 NanoWakeWord LSTM model load/listener smoke test passing
@@ -67,6 +67,7 @@ pi RPC `get_state` smoke test returned the configured default model and session 
 `roger task --no-tts "dame la hora en colombia"` routes to `system` and dispatches successfully
 `gracias Roger` is handled as a dialogue-closing phrase: Roger says goodbye, does not dispatch to pi-agent, and closes the overlay quickly
 Empty/no-input captures close the overlay quickly and do not dispatch, speak, or run STT; Silero VAD returns empty audio when no speech starts within `no_speech_timeout_seconds`
+NanoWakeWord interpreter resets after detection and daemon waits 5 seconds after goodbye/no-input before listening again to avoid immediate reactivation from residual audio
 Roger sends OS-level `notify-send` feedback when available and plays Kokoro TTS audio through `sounddevice`
 Kokoro TTS defaults to local cached config/model/voice files (`local_files_only = true`) with explicit repo id to avoid implicit HF downloads/warnings
 `roger daemon` runs continuous wake/instruction cycles and supports `--max-cycles` plus clean Ctrl+C summaries

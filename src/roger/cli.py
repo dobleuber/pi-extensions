@@ -101,7 +101,7 @@ def build_parser() -> argparse.ArgumentParser:
     daemon.add_argument("--wake-debug-min-score", type=float, default=0.2, help="Minimum score printed by --wake-debug")
     daemon.add_argument("--max-cycles", type=int, default=None, help="Stop after N wake/instruction cycles; useful for tests")
     daemon.add_argument("--result-hold-seconds", type=float, default=10.0, help="Keep the result visible before listening for the next wake")
-    daemon.add_argument("--quick-close-seconds", type=float, default=2.5, help="Short pause after goodbye/no-input before listening again")
+    daemon.add_argument("--quick-close-seconds", type=float, default=5.0, help="Short pause after goodbye/no-input before listening again")
 
     wake_file = subcommands.add_parser("wake-file", help="Score a recorded WAV file with the configured wake adapter")
     wake_file.add_argument("audio", type=Path, help="16 kHz mono PCM WAV containing the wake phrase")

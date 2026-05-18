@@ -71,6 +71,8 @@ class NanoWakeWordAdapter(OptionalDependencyMixin):
         detected = bool(getattr(result, "detected", False)) or score >= self.threshold
         if not detected:
             return None
+        if hasattr(interpreter, "reset"):
+            interpreter.reset()
         return WakeDetection(phrase=phrase, score=score)
 
     def _load_interpreter(self):

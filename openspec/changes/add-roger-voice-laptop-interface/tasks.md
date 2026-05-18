@@ -121,3 +121,4 @@
 - [x] 15.6 Route clear general/system information tasks such as time/date questions without asking for project clarification.
 - [x] 15.7 Add `gracias Roger` as a dialogue-closing phrase that says goodbye and skips pi-agent dispatch.
 - [x] 15.8 Treat empty/no-input captures as a quick-close interaction with no speech, STT, or pi-agent dispatch.
+- [x] 15.9 Reset NanoWakeWord after detections and add a post-goodbye/no-input cooldown to avoid immediate reactivation.
