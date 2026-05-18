@@ -77,7 +77,7 @@ PYTHONPATH=src python3 -m roger.cli spike vad --dry-run
 
 ## STT
 
-Default scaffold: faster-whisper, multilingual `base`, Spanish language (`es`).
+Default scaffold: faster-whisper `large-v3-turbo`, Spanish language (`es`), CUDA GPU (`device = "cuda"`) with `float16` compute on the RTX 4080 Laptop GPU.
 Fallback/baseline: whisper.cpp.
 
 Dry-run the STT spike:

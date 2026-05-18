@@ -22,7 +22,12 @@ class BackendFactoryTests(unittest.TestCase):
         self.assertIsInstance(vad, SileroVadAdapter)
         self.assertEqual(vad.max_capture_seconds, config.speech.vad.max_capture_seconds)
         self.assertEqual(vad.min_silence_duration_ms, config.speech.vad.silence_timeout_ms)
-        self.assertIsInstance(create_stt_backend(config), FasterWhisperSttAdapter)
+        stt = create_stt_backend(config)
+        self.assertIsInstance(stt, FasterWhisperSttAdapter)
+        self.assertEqual(stt.model_name, "large-v3-turbo")
+        self.assertEqual(stt.language, "es")
+        self.assertEqual(stt.device, "cuda")
+        self.assertEqual(stt.compute_type, "float16")
         self.assertIsInstance(create_tts_backend(config), KokoroTtsAdapter)
 
     def test_manual_wake_backend_is_available_for_development(self):

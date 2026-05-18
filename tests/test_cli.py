@@ -28,6 +28,9 @@ class RogerCliTests(unittest.TestCase):
         self.assertIn("wake: nanowakeword", output)
         self.assertIn("target: hola roger", output)
         self.assertIn("wake threshold: 0.85", output)
+        self.assertIn("stt model: large-v3-turbo", output)
+        self.assertIn("stt device: cuda", output)
+        self.assertIn("stt compute type: float16", output)
         self.assertIn("tts local files only: True", output)
         self.assertIn("sessions: current-project, system", output)
 

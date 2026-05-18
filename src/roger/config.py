@@ -26,8 +26,10 @@ class VadConfig:
 @dataclass(frozen=True)
 class SttConfig:
     backend: str = "faster-whisper"
-    model: str = "small"
+    model: str = "large-v3-turbo"
     language: str = "es"
+    device: str = "cuda"
+    compute_type: str = "float16"
 
 
 @dataclass(frozen=True)

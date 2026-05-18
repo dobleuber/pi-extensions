@@ -33,7 +33,12 @@ def create_vad_backend(config: RogerConfig):
 
 def create_stt_backend(config: RogerConfig):
     if config.speech.stt.backend == "faster-whisper":
-        return FasterWhisperSttAdapter()
+        return FasterWhisperSttAdapter(
+            model=config.speech.stt.model,
+            language=config.speech.stt.language,
+            device=config.speech.stt.device,
+            compute_type=config.speech.stt.compute_type,
+        )
     raise ValueError(f"Unsupported STT backend: {config.speech.stt.backend}")
 
 

@@ -8,7 +8,7 @@ This document records the current default decisions and what still requires empi
 |---|---|---|---|
 | Wake word | NanoWakeWord LSTM model at `models/wake/nanowakeword/hola_roger_lstm/model/hola_roger_lstm.onnx` | Manual trigger, then openWakeWord if needed | Model loads and listener smoke-tested; no real audio benchmark yet |
 | VAD | Silero VAD | WebRTC VAD | Silence smoke test passed with no speech timestamps |
-| STT | faster-whisper | whisper.cpp | Tiny model silence transcription smoke test passed |
+| STT | faster-whisper `large-v3-turbo` on CUDA/float16 | whisper.cpp | Tiny silence smoke passed; default moved to GPU quality mode |
 | TTS | Kokoro | Piper | Spanish synthesis smoke test passed with `ef_dora` |
 | pi integration | RPC | SDK later if needed | Unit-tested fake RPC client |
 | Online model | pi default | n/a | Implemented as no explicit model args |
@@ -57,6 +57,7 @@ NanoWakeWord LSTM model load/listener smoke test passing
 User live-tested the LSTM model and reported it works well
 Silero VAD silence smoke test returns no speech timestamps
 faster-whisper tiny silence transcription smoke test returns empty text
+Roger STT default is faster-whisper `large-v3-turbo` on CUDA with `float16` compute; RTX 4080 Laptop GPU and CTranslate2 CUDA float16 support verified
 Kokoro `ef_dora` Spanish synthesis smoke test produced audio bytes at 24 kHz
 pi RPC `get_state` smoke test returned the configured default model and session state
 `roger listen-once --manual-wake --preview-action cancel --no-tts` smoke test passed without dispatching and prints phase feedback/transcription

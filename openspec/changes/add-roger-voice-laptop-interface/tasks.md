@@ -110,3 +110,9 @@
 - [x] 14.2 Add an uninstall command that removes only Roger's managed autostart block.
 - [x] 14.3 Create backups before editing `~/.config/hypr/autostart.lua`.
 - [x] 14.4 Validate the Hyprland configuration after installing with `hyprctl reload` and `hyprctl configerrors`.
+
+## 15. STT Quality Hardening
+
+- [x] 15.1 Wire configured faster-whisper model, language, device, and compute type into the STT factory.
+- [x] 15.2 Change the default STT configuration to faster-whisper `large-v3-turbo` on CUDA with `float16` compute.
+- [x] 15.3 Expose STT model/device/compute type in `roger health`.
