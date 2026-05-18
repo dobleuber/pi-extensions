@@ -118,3 +118,4 @@
 - [x] 15.3 Expose STT model/device/compute type in `roger health`.
 - [x] 15.4 Re-exec voice commands with CUDA library paths when CTranslate2 needs local CUDA libraries.
 - [x] 15.5 Keep daemon alive and report cycle errors if STT/VAD/runtime failures occur.
+- [x] 15.6 Route clear general/system information tasks such as time/date questions without asking for project clarification.

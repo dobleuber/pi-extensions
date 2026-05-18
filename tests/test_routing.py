@@ -15,11 +15,27 @@ class RoutingTests(unittest.TestCase):
     def test_router_classifies_system_tasks(self):
         router = Router(SessionRegistry.default(project_dir=Path("/tmp/project")))
 
-        for text in ["instala steam", "actualiza el sistema", "mata firefox", "desinstala spotify"]:
+        for text in [
+            "instala steam",
+            "actualiza el sistema",
+            "mata firefox",
+            "desinstala spotify",
+            "dame la hora en colombia",
+            "que hora es en bogota",
+            "dime la fecha de hoy",
+        ]:
             with self.subTest(text=text):
                 decision = router.route(text)
                 self.assertEqual(decision.session_name, "system")
                 self.assertFalse(decision.needs_clarification)
+
+    def test_router_keeps_vague_instructions_ambiguous(self):
+        router = Router(SessionRegistry.default(project_dir=Path("/tmp/project")))
+
+        decision = router.route("haz eso")
+
+        self.assertTrue(decision.needs_clarification)
+        self.assertIsNone(decision.session_name)
 
     def test_router_classifies_current_project_tasks(self):
         router = Router(SessionRegistry.default(project_dir=Path("/tmp/project")))

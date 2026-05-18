@@ -25,6 +25,11 @@ SYSTEM_KEYWORDS = (
     "cierra ",
     "reinicia ",
     "apaga ",
+    "hora",
+    "fecha",
+    "calcula",
+    "calcular",
+    "clima",
 )
 
 PROJECT_KEYWORDS = (
