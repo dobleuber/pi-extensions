@@ -17,13 +17,18 @@ class PiSessionTests(unittest.TestCase):
         self.assertIn("/tmp/roger-sessions/current-project", command)
         self.assertEqual(manager.cwd_for("current-project"), Path("/tmp/project"))
 
-    def test_offline_model_args_use_ollama_provider_and_model_when_configured(self):
-        args = select_model_args(offline=True, ollama_model="qwen2.5-coder:7b")
+    def test_offline_model_args_use_configured_provider_and_model(self):
+        args = select_model_args(offline=True, provider="llama-cpp", model="gemma4")
 
-        self.assertEqual(args, ["--provider", "ollama", "--model", "qwen2.5-coder:7b"])
+        self.assertEqual(args, ["--provider", "llama-cpp", "--model", "gemma4"])
+
+    def test_offline_model_args_can_select_provider_without_model(self):
+        args = select_model_args(offline=True, provider="llama-cpp", model=None)
+
+        self.assertEqual(args, ["--provider", "llama-cpp"])
 
     def test_online_model_args_leave_pi_default_untouched(self):
-        self.assertEqual(select_model_args(offline=False, ollama_model="qwen2.5-coder:7b"), [])
+        self.assertEqual(select_model_args(offline=False, provider="llama-cpp", model="gemma4"), [])
 
 
 if __name__ == "__main__":

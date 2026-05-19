@@ -32,6 +32,8 @@ class RogerCliTests(unittest.TestCase):
         self.assertIn("stt device: cuda", output)
         self.assertIn("stt compute type: float16", output)
         self.assertIn("tts local files only: True", output)
+        self.assertIn("offline model provider: llama-cpp", output)
+        self.assertIn("offline model: gemma4", output)
         self.assertIn("sessions: current-project, system", output)
 
     def test_spike_command_can_dry_run_each_spike(self):

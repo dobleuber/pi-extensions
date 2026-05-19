@@ -10,7 +10,8 @@ from roger.routing.registry import SessionRegistry
 class PiSessionManager:
     registry: SessionRegistry
     session_dir: Path
-    ollama_model: str | None = None
+    offline_provider: str = "llama-cpp"
+    offline_model: str | None = "gemma4"
 
     def build_command(self, session_name: str, offline: bool = False) -> list[str]:
         session_path = self.session_dir / session_name
@@ -20,17 +21,17 @@ class PiSessionManager:
             "rpc",
             "--session-dir",
             str(session_path),
-            *select_model_args(offline=offline, ollama_model=self.ollama_model),
+            *select_model_args(offline=offline, provider=self.offline_provider, model=self.offline_model),
         ]
 
     def cwd_for(self, session_name: str) -> Path:
         return self.registry.get(session_name).cwd
 
 
-def select_model_args(offline: bool, ollama_model: str | None) -> list[str]:
+def select_model_args(offline: bool, provider: str, model: str | None) -> list[str]:
     if not offline:
         return []
-    args = ["--provider", "ollama"]
-    if ollama_model:
-        args.extend(["--model", ollama_model])
+    args = ["--provider", provider]
+    if model:
+        args.extend(["--model", model])
     return args

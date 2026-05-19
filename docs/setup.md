@@ -259,19 +259,23 @@ pi --mode rpc
 
 The implemented `PiRpcClient` can start an RPC process, send JSONL prompts, read streamed events, collect text deltas, and terminate the process.
 
-## Ollama fallback
+## llama.cpp fallback
 
 Online mode leaves pi's configured default model untouched.
 Offline mode builds pi args like:
 
 ```bash
-pi --mode rpc --provider ollama --model <configured-ollama-model>
+pi --mode rpc --provider llama-cpp --model gemma4
 ```
 
-Ollama must be running separately:
+llama.cpp must be running separately. On this system the current model is registered in `~/.config/llama.cpp/models.json` and exposed through the wrapper:
 
 ```bash
-ollama serve
+llama-gemma4-server --no-warmup
+curl -fsS http://127.0.0.1:11434/v1/models
+
+# Optional one-off context override if needed:
+LLAMA_CPP_CTX=8192 llama-gemma4-server --no-warmup
 ```
 
-Roger reports offline fallback unavailability instead of silently dropping tasks.
+pi is configured with a local OpenAI-compatible provider named `llama-cpp` in `~/.pi/agent/models.json`. Roger reports offline fallback unavailability instead of silently dropping tasks.

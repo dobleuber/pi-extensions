@@ -7,10 +7,10 @@ from roger.routing.registry import SessionRegistry
 
 
 class FakeClient:
-    def __init__(self):
+    def __init__(self, collected_text="Hecho"):
         self.started = None
         self.prompted = None
-        self.collected_text = "Hecho"
+        self.collected_text = collected_text
         self.stopped = False
 
     def start(self, command):
@@ -47,6 +47,16 @@ class PiAgentRunnerTests(unittest.TestCase):
         self.assertEqual(calls[0][1], Path("/tmp/project"))
         self.assertIn("/tmp/sessions/current-project", calls[0][0])
         self.assertTrue(client.stopped)
+
+    def test_runner_strips_local_chat_template_tokens_from_collected_text(self):
+        client = FakeClient(collected_text="ok<|im_end|>")
+        registry = SessionRegistry.default(project_dir=Path("/tmp/project"))
+        manager = PiSessionManager(registry=registry, session_dir=Path("/tmp/sessions"))
+        runner = PiAgentRunner(session_manager=manager, client_factory=lambda command, cwd: client)
+
+        result = runner.run_task("system", "responde exactamente: ok")
+
+        self.assertEqual(result, "ok")
 
     def test_runner_reports_prompt_rejection(self):
         class RejectingClient(FakeClient):

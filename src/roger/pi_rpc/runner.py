@@ -7,6 +7,21 @@ from roger.pi_rpc.client import PiRpcClient
 from roger.pi_rpc.sessions import PiSessionManager
 
 
+_CHAT_TEMPLATE_TOKENS = (
+    "<|im_end|>",
+    "<|im_start|>",
+    "<end_of_turn>",
+    "<start_of_turn>",
+)
+
+
+def clean_model_response_text(text: str) -> str:
+    cleaned = text
+    for token in _CHAT_TEMPLATE_TOKENS:
+        cleaned = cleaned.replace(token, "")
+    return cleaned.strip()
+
+
 class PiAgentRunner:
     def __init__(
         self,
@@ -29,7 +44,7 @@ class PiAgentRunner:
                 raise RuntimeError(response.get("error", "pi-agent rejected prompt"))
             for _event in client.stream_until_agent_end():
                 pass
-            return client.collected_text
+            return clean_model_response_text(client.collected_text)
         finally:
             client.stop()
 

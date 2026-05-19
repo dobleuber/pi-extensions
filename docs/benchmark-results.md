@@ -12,7 +12,7 @@ This document records the current default decisions and what still requires empi
 | TTS | Kokoro | Piper | Spanish synthesis smoke test passed with `ef_dora` |
 | pi integration | RPC | SDK later if needed | Unit-tested fake RPC client |
 | Online model | pi default | n/a | Implemented as no explicit model args |
-| Offline model | Ollama | n/a | Args implemented; requires local Ollama server/model |
+| Offline model | llama.cpp (`llama-cpp` provider, `gemma4`) | Ollama (deprecated) | Args implemented; requires local llama.cpp server/model |
 
 ## Wake-word architecture decision
 

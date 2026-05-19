@@ -75,7 +75,7 @@ def build_parser() -> argparse.ArgumentParser:
     listen_once.add_argument("--project-dir", type=Path, default=Path.cwd(), help="Current project directory")
     listen_once.add_argument("--manual-wake", action="store_true", help="Use and trigger the manual wake adapter")
     listen_once.add_argument("--preview-action", choices=("accept", "cancel", "timeout"), default="accept")
-    listen_once.add_argument("--offline", action="store_true", help="Use offline/Ollama pi-agent mode")
+    listen_once.add_argument("--offline", action="store_true", help="Use offline/llama.cpp pi-agent mode")
     listen_once.add_argument("--no-tts", action="store_true", help="Do not synthesize spoken output")
     listen_once.add_argument("--quiet", action="store_true", help="Suppress live progress messages")
     listen_once.add_argument("--no-overlay", action="store_true", help="Disable the floating desktop overlay")
@@ -90,7 +90,7 @@ def build_parser() -> argparse.ArgumentParser:
     daemon.add_argument("--project-dir", type=Path, default=Path.cwd(), help="Current project directory")
     daemon.add_argument("--manual-wake", action="store_true", help="Use and trigger the manual wake adapter before each cycle")
     daemon.add_argument("--preview-action", choices=("accept", "cancel", "timeout"), default="accept")
-    daemon.add_argument("--offline", action="store_true", help="Use offline/Ollama pi-agent mode")
+    daemon.add_argument("--offline", action="store_true", help="Use offline/llama.cpp pi-agent mode")
     daemon.add_argument("--no-tts", action="store_true", help="Do not synthesize spoken output")
     daemon.add_argument("--quiet", action="store_true", help="Suppress console and desktop feedback")
     daemon.add_argument("--no-overlay", action="store_true", help="Disable the floating desktop overlay")
@@ -115,7 +115,7 @@ def build_parser() -> argparse.ArgumentParser:
     task.add_argument("--session", choices=("system", "current-project"), default=None, help="Force a Roger session")
     task.add_argument("--config", type=Path, default=None, help="Path to roger TOML config")
     task.add_argument("--project-dir", type=Path, default=Path.cwd(), help="Current project directory")
-    task.add_argument("--offline", action="store_true", help="Use offline/Ollama pi-agent mode")
+    task.add_argument("--offline", action="store_true", help="Use offline/llama.cpp pi-agent mode")
     task.add_argument("--no-tts", action="store_true", help="Do not synthesize spoken output")
     task.add_argument("--no-overlay", action="store_true", help="Disable the floating desktop overlay")
     task.add_argument("--console-feedback", action="store_true", help="Print phase feedback in the terminal")
@@ -250,6 +250,7 @@ def _format_health(config) -> str:
         f"tts local files only: {config.speech.tts.local_files_only}",
         f"online model provider: {config.models.online.provider}",
         f"offline model provider: {config.models.offline.provider}",
+        f"offline model: {config.models.offline.model or '(provider default)'}",
         f"sessions: {sessions}",
     ]
     return "\n".join(lines) + "\n"
@@ -413,7 +414,8 @@ def _create_pi_runner(config: RogerConfig, registry: SessionRegistry, offline: b
     session_manager = PiSessionManager(
         registry=registry,
         session_dir=Path(".roger/pi-sessions"),
-        ollama_model=config.models.offline.model,
+        offline_provider=config.models.offline.provider,
+        offline_model=config.models.offline.model,
     )
     return PiAgentRunner(session_manager=session_manager, offline=offline)
 

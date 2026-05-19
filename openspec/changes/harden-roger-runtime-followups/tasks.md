@@ -2,9 +2,9 @@
 
 - [ ] 1.1 Add a model availability policy abstraction that returns online, offline-fallback, or unavailable decisions.
 - [ ] 1.2 Add bounded connectivity/provider probes and config flags for automatic fallback, explicit offline, and fallback disabled modes.
-- [ ] 1.3 Update `PiSessionManager` command generation to include the Ollama provider/model profile and pi offline startup behavior when fallback is selected.
+- [ ] 1.3 Update `PiSessionManager` command generation to include the llama.cpp provider/model profile and pi offline startup behavior when fallback is selected.
 - [ ] 1.4 Update `PiAgentRunner` to retry once on recognized online provider/network startup or prompt-acceptance failures.
-- [ ] 1.5 Add tests for online default, explicit offline, automatic fallback, unavailable Ollama server, and missing fallback model reporting.
+- [ ] 1.5 Add tests for online default, explicit offline, automatic fallback, unavailable llama.cpp server, and missing fallback model reporting.
 
 ## 2. Task Progress Logging
 
@@ -40,7 +40,7 @@
 
 ## 6. Documentation and Verification
 
-- [ ] 6.1 Update setup docs with automatic offline fallback behavior, Ollama prerequisites, and visible fallback status.
+- [ ] 6.1 Update setup docs with automatic offline fallback behavior, llama.cpp prerequisites, and visible fallback status.
 - [ ] 6.2 Document task log location, log retention/truncation behavior, and how to inspect recent daemon task logs.
 - [ ] 6.3 Document cancellation phrases/CLI commands and limitations of pi RPC abort semantics.
 - [ ] 6.4 Update troubleshooting docs for local TTS degradation and text-only fallback.

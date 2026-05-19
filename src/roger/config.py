@@ -61,7 +61,7 @@ class ModelConfig:
 @dataclass(frozen=True)
 class ModelsConfig:
     online: ModelConfig = field(default_factory=lambda: ModelConfig(provider="pi-default"))
-    offline: ModelConfig = field(default_factory=lambda: ModelConfig(provider="ollama"))
+    offline: ModelConfig = field(default_factory=lambda: ModelConfig(provider="llama-cpp", model="gemma4"))
 
 
 @dataclass(frozen=True)

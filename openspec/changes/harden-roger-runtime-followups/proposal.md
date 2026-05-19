@@ -4,7 +4,7 @@ Roger already has a working voice-to-pi MVP, but verification found several hard
 
 ## What Changes
 
-- Add automatic online/offline model selection so Roger can detect unavailable internet/pi providers and fall back to Ollama without requiring a manual `--offline` flag.
+- Add automatic online/offline model selection so Roger can detect unavailable internet/pi providers and fall back to llama.cpp without requiring a manual `--offline` flag.
 - Add a first-class task progress log fed by pi RPC events, including assistant text deltas, tool start/update/end events, command output, errors, and completion status.
 - Add resilient spoken-output behavior so local TTS failures never block a completed task or hide the textual result.
 - Add in-flight task cancellation using pi RPC control commands where available, with a clear result when abort is unsupported or fails.
@@ -13,7 +13,7 @@ Roger already has a working voice-to-pi MVP, but verification found several hard
 ## Capabilities
 
 ### New Capabilities
-- `roger-offline-model-fallback`: Automatic detection of online provider availability and safe fallback to configured Ollama-backed pi execution.
+- `roger-offline-model-fallback`: Automatic detection of online provider availability and safe fallback to configured llama.cpp-backed pi execution.
 - `roger-task-progress-log`: Persistent visible progress logging for streamed pi-agent text, tool events, command output, errors, and task completion.
 - `roger-resilient-spoken-output`: TTS failure isolation and textual fallback behavior for successful, failed, and clarification outcomes.
 - `roger-task-cancellation`: User-facing stop/cancel semantics for active pi-agent work, mapped to pi RPC abort capabilities when technically available.
@@ -26,5 +26,5 @@ Roger already has a working voice-to-pi MVP, but verification found several hard
 
 - Affected code areas: `src/roger/pi_rpc/`, `src/roger/manual_loop.py`, `src/roger/voice_loop.py`, `src/roger/tts_speaker.py`, `src/roger/routing/`, `src/roger/overlay.py`, and CLI/daemon wiring in `src/roger/cli.py`.
 - Affected docs/tests: setup docs, task/daemon CLI tests, pi RPC client/runner tests, routing tests, overlay/log tests, and TTS failure tests.
-- External systems: pi RPC mode, online pi providers, local Ollama server/model availability, local Kokoro/Piper-style TTS backends, and Omarchy/Hyprland overlay feedback.
+- External systems: pi RPC mode, online pi providers, local llama.cpp server/model availability, local Kokoro/Piper-style TTS backends, and Omarchy/Hyprland overlay feedback.
 - No breaking changes are intended; existing manual `--offline`, `--no-tts`, and `--no-overlay` flags should remain valid.
