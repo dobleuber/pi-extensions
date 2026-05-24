@@ -1,0 +1,28 @@
+[project]
+name = "roger-laptop-interface"
+version = "0.1.0"
+description = "Voice-first laptop interface backed by pi-agent"
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+dependencies = []
+
+[dependency-groups]
+dev = []
+speech = [
+  "nanowakeword>=2.1",
+  "faster-whisper>=1.2",
+  "silero-vad>=6.2",
+  "kokoro>=0.9",
+  "sounddevice>=0.5",
+  "pyyaml>=6.0",
+]
+
+[project.scripts]
+roger = "roger.cli:main"
+
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]

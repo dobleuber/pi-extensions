@@ -1,0 +1,124 @@
+## 1. Project Foundation
+
+- [x] 1.1 Choose the implementation runtime and create the initial project structure for the Roger daemon/orchestrator.
+- [x] 1.2 Add dependency and environment management for local audio, speech backends, pi RPC, tests, and benchmark scripts.
+- [x] 1.3 Add configuration loading for speech backends, model paths, thresholds, session registry, and online/offline model settings.
+- [x] 1.4 Add a basic CLI entrypoint that can run health checks and individual spikes without starting the full daemon.
+
+## 2. Wake Word Spike
+
+- [x] 2.1 Create NanoWakeWord training configuration for `target_phrase: "hola roger"` with fixed positives.
+- [x] 2.2 Add automatic adversarial, phoneme adversarial, and manual nearby negatives for `hola roger`.
+- [x] 2.3 Train or document reproducible training for NanoWakeWord GRU.
+- [x] 2.4 Train or document reproducible training for NanoWakeWord LSTM.
+- [x] 2.5 Train or document reproducible training for NanoWakeWord TCN.
+- [x] 2.6 Build a benchmark harness that measures false positives, false negatives, activation latency, idle CPU, memory usage, and training effort for GRU, LSTM, and TCN.
+- [x] 2.7 Select the default wake architecture or record why a fallback trigger/openWakeWord baseline is required.
+
+## 3. Speech Backend Spikes
+
+- [x] 3.1 Implement a VAD benchmark comparing Silero VAD and WebRTC VAD for end-of-instruction detection.
+- [x] 3.2 Select the default VAD backend and record thresholds for silence timeout and noise robustness.
+- [x] 3.3 Implement an STT benchmark comparing faster-whisper and whisper.cpp on Spanish laptop-control instructions.
+- [x] 3.4 Select the default STT backend and record model size, latency, accuracy, CPU/GPU usage, and install complexity.
+- [x] 3.5 Implement a TTS benchmark comparing Kokoro and Piper for short Spanish Roger responses.
+- [x] 3.6 Select the default TTS backend and record voice quality, latency, CPU/GPU usage, package status, licensing, and offline behavior.
+
+## 4. Speech Backend Adapters
+
+- [x] 4.1 Define wake-word, VAD, STT, and TTS adapter interfaces.
+- [x] 4.2 Implement the selected wake-word adapter and a temporary manual trigger adapter for development.
+- [x] 4.3 Implement the selected VAD adapter.
+- [x] 4.4 Implement the selected STT adapter.
+- [x] 4.5 Implement the selected TTS adapter.
+- [x] 4.6 Add adapter-level tests or smoke checks for backend initialization, inference, failure handling, and configuration switching.
+
+## 5. pi-agent Integration
+
+- [x] 5.1 Implement a JSONL RPC client for `pi --mode rpc` that can start pi, send prompts, read streamed events, and stop cleanly.
+- [x] 5.2 Implement session creation/reuse for separate `system` and `current-project` pi-agent contexts.
+- [x] 5.3 Implement online/default pi model selection and offline Ollama fallback selection.
+- [x] 5.4 Add smoke tests for prompt dispatch, streamed response capture, tool-event logging, task completion, and pi-agent failure reporting.
+
+## 6. Router and Session Registry
+
+- [x] 6.1 Implement the initial context registry with `system` and `current-project` domains.
+- [x] 6.2 Implement rule-based routing for system tasks such as install, uninstall, update, kill app, and laptop-level management.
+- [x] 6.3 Implement rule-based routing for current-project tasks such as edit files, create demos, inspect code, and run tests.
+- [x] 6.4 Implement ambiguity handling that asks for clarification when the target domain or project cannot be resolved confidently.
+- [x] 6.5 Add routing tests for system, current-project, and ambiguous instructions.
+
+## 7. Transcription Preview and Logs
+
+- [x] 7.1 Implement a visible transcription preview surface with accept, cancel, and timeout behavior.
+- [x] 7.2 Ensure cancelled previews are not dispatched to pi-agent.
+- [x] 7.3 Implement a task log surface that displays pi-agent text, tool events, command output, errors, and completion status.
+- [x] 7.4 Implement concise response summarization rules so long logs are not spoken by default.
+
+## 8. MVP Manual Loop
+
+- [x] 8.1 Build a manual-trigger flow that accepts typed or simulated transcriptions and dispatches them through preview, router, pi-agent, log, and TTS.
+- [x] 8.2 Verify the manual loop for a `current-project` task.
+- [x] 8.3 Verify the manual loop for a `system` task that does not require destructive changes.
+- [x] 8.4 Verify failure handling when pi-agent is unavailable.
+
+## 9. MVP Voice Loop
+
+- [x] 9.1 Connect wake detection to instruction capture.
+- [x] 9.2 Connect VAD-based instruction capture to local STT.
+- [x] 9.3 Connect STT output to transcription preview.
+- [x] 9.4 Connect accepted preview output to router and pi-agent dispatch.
+- [x] 9.5 Connect pi-agent final status to local TTS.
+- [x] 9.6 Ensure Roger handles one instruction per wake activation and returns to wake-word listening after completion or error.
+
+## 10. Verification and Documentation
+
+- [x] 10.1 Document setup steps for local wake-word, VAD, STT, TTS, pi RPC, and Ollama fallback.
+- [x] 10.2 Document benchmark results and selected defaults.
+- [x] 10.3 Run OpenSpec validation for `add-roger-voice-laptop-interface`.
+- [x] 10.4 Run the project test/smoke suite and record the commands used.
+- [x] 10.5 Update the OpenSpec tasks as complete when implementation work is verified.
+
+## 11. Runtime UX and Real Execution Hardening
+
+- [x] 11.1 Add OS-level feedback hooks so Roger can notify the desktop when wake, capture, transcription, dispatch, and completion happen.
+- [x] 11.2 Play synthesized TTS audio through the local audio output instead of only generating bytes.
+- [x] 11.3 Add a typed task dispatch CLI for validating real pi-agent execution without speech uncertainty.
+- [x] 11.4 Add documentation and smoke commands for OS feedback, TTS playback, and real task execution.
+
+## 12. Continuous Daemon Mode
+
+- [x] 12.1 Add a `roger daemon` command that continuously runs wake/instruction cycles until interrupted.
+- [x] 12.2 Add `--max-cycles` for deterministic smoke tests and bounded manual verification.
+- [x] 12.3 Add clean daemon interrupt handling and final cycle/dispatch summary.
+- [x] 12.4 Add daemon tests and documentation for real end-to-end operation.
+
+## 13. Siri-like Floating Overlay
+
+- [x] 13.1 Add an always-on-top floating overlay for active Roger state.
+- [x] 13.2 Show wake/listening, transcript, execution, and result states in the overlay.
+- [x] 13.3 Wire the overlay into `listen-once` and `daemon` by default with `--no-overlay` opt-out.
+- [x] 13.4 Add an `overlay-demo` command for manual visual verification without voice/pi execution.
+- [x] 13.5 Keep transcript and result visible in the overlay throughout execution instead of replacing them with transient status messages.
+- [x] 13.6 Add an isolated `roger say` command for local TTS/audio playback verification.
+- [x] 13.7 Hold daemon results long enough to read before listening for the next wake cycle.
+- [x] 13.8 Speak clarification and failure outcomes, not only successful pi-agent responses.
+
+## 14. Omarchy Autostart Installer
+
+- [x] 14.1 Add a managed Hyprland autostart installer for `roger daemon`.
+- [x] 14.2 Add an uninstall command that removes only Roger's managed autostart block.
+- [x] 14.3 Create backups before editing `~/.config/hypr/autostart.lua`.
+- [x] 14.4 Validate the Hyprland configuration after installing with `hyprctl reload` and `hyprctl configerrors`.
+
+## 15. STT Quality Hardening
+
+- [x] 15.1 Wire configured faster-whisper model, language, device, and compute type into the STT factory.
+- [x] 15.2 Change the default STT configuration to faster-whisper `large-v3-turbo` on CUDA with `float16` compute.
+- [x] 15.3 Expose STT model/device/compute type in `roger health`.
+- [x] 15.4 Re-exec voice commands with CUDA library paths when CTranslate2 needs local CUDA libraries.
+- [x] 15.5 Keep daemon alive and report cycle errors if STT/VAD/runtime failures occur.
+- [x] 15.6 Route clear general/system information tasks such as time/date questions without asking for project clarification.
+- [x] 15.7 Add `gracias Roger` as a dialogue-closing phrase that says goodbye and skips pi-agent dispatch.
+- [x] 15.8 Treat empty/no-input captures as a quick-close interaction with no speech, STT, or pi-agent dispatch.
+- [x] 15.9 Reset NanoWakeWord after detections and add a post-goodbye/no-input cooldown to avoid immediate reactivation.

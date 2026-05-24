@@ -1,0 +1,561 @@
+from __future__ import annotations
+
+import argparse
+from dataclasses import dataclass
+import os
+from pathlib import Path
+import sys
+import time
+import wave
+from typing import Callable, Sequence, Type
+
+import numpy as np
+
+from roger.config import load_config
+from roger.benchmarks.wake_nanowakeword import write_training_configs
+from roger.benchmarks.wake_nanowakeword import ARCHITECTURES
+from roger.benchmarks.speech import build_stt_plan, build_tts_plan, build_vad_plan
+from roger.backends.factory import create_stt_backend, create_tts_backend, create_vad_backend, create_wake_backend
+from roger.config import RogerConfig
+from roger.cuda_env import cuda_env_for_reexec
+from roger.daemon import RogerDaemon
+from roger.feedback import CompositeFeedback, ConsoleFeedback
+from roger.feedback_system import SystemFeedback
+from roger.installer import AutostartInstaller
+from roger.overlay import OverlayFeedback
+from roger.pi_rpc.availability import ModelAvailabilityPolicy, make_http_online_probe
+from roger.pi_rpc.runner import PiAgentRunner
+from roger.pi_rpc.sessions import PiSessionManager
+from roger.routing.registry import SessionEntry, SessionRegistry
+from roger.routing.router import Router
+from roger.summarization import summarize_for_speech
+from roger.tts_speaker import NoopSpeaker, SafeSpeaker, SynthesizingSpeaker, speak_best_effort
+from roger.ui.logs import TaskLogStore
+from roger.voice_loop import VoiceLoop
+
+
+SPIKES = ("wake", "vad", "stt", "tts")
+
+
+@dataclass(frozen=True)
+class RuntimeDependencies:
+    create_wake_backend: Callable = create_wake_backend
+    create_vad_backend: Callable = create_vad_backend
+    create_stt_backend: Callable = create_stt_backend
+    create_pi_runner: Callable = None
+    create_tts_speaker: Callable = None
+    create_overlay_feedback: Callable = None
+    voice_loop_class: Type = VoiceLoop
+
+    def __post_init__(self):
+        if self.create_pi_runner is None:
+            object.__setattr__(self, "create_pi_runner", _create_pi_runner)
+        if self.create_tts_speaker is None:
+            object.__setattr__(self, "create_tts_speaker", _create_tts_speaker)
+        if self.create_overlay_feedback is None:
+            object.__setattr__(self, "create_overlay_feedback", _create_overlay_feedback)
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog="roger", description="Roger laptop interface")
+    subcommands = parser.add_subparsers(dest="command", required=True)
+
+    health = subcommands.add_parser("health", help="Run configuration and environment health checks")
+    health.add_argument("--config", type=Path, default=None, help="Path to roger TOML config")
+    health.add_argument("--project-dir", type=Path, default=Path.cwd(), help="Current project directory")
+
+    route = subcommands.add_parser("route", help="Dry-run Roger context routing for an instruction")
+    route.add_argument("instruction", help="Instruction to classify without dispatching")
+    route.add_argument("--config", type=Path, default=None, help="Path to roger TOML config")
+    route.add_argument("--project-dir", type=Path, default=Path.cwd(), help="Current project directory")
+
+    spike = subcommands.add_parser("spike", help="Run or dry-run an implementation spike")
+    spike.add_argument("spike", choices=SPIKES)
+    spike.add_argument("--dry-run", action="store_true", help="Print spike plan without executing heavy dependencies")
+    spike.add_argument("--write-configs", action="store_true", help="Write generated benchmark/training configs when supported")
+    spike.add_argument("--output-dir", type=Path, default=Path("configs/nanowakeword"), help="Output directory for generated configs")
+    spike.add_argument("--config", type=Path, default=None, help="Path to roger TOML config")
+    spike.add_argument("--project-dir", type=Path, default=Path.cwd(), help="Current project directory")
+
+    listen_once = subcommands.add_parser("listen-once", help="Run one wake/capture/transcribe/dispatch cycle")
+    listen_once.add_argument("--config", type=Path, default=None, help="Path to roger TOML config")
+    listen_once.add_argument("--project-dir", type=Path, default=Path.cwd(), help="Current project directory")
+    listen_once.add_argument("--manual-wake", action="store_true", help="Use and trigger the manual wake adapter")
+    listen_once.add_argument("--preview-action", choices=("accept", "cancel", "timeout"), default="accept")
+    listen_once.add_argument("--offline", action="store_true", help="Use offline/llama.cpp pi-agent mode")
+    listen_once.add_argument("--no-tts", action="store_true", help="Do not synthesize spoken output")
+    listen_once.add_argument("--quiet", action="store_true", help="Suppress live progress messages")
+    listen_once.add_argument("--no-overlay", action="store_true", help="Disable the floating desktop overlay")
+    listen_once.add_argument("--console-feedback", action="store_true", help="Print phase feedback in the terminal")
+    listen_once.add_argument("--desktop-notifications", action="store_true", help="Also send notify-send desktop notifications")
+    listen_once.add_argument("--wake-threshold", type=float, default=None, help="Override wake detection threshold for this run")
+    listen_once.add_argument("--wake-debug", action="store_true", help="Print NanoWakeWord scores while waiting")
+    listen_once.add_argument("--wake-debug-min-score", type=float, default=0.2, help="Minimum score printed by --wake-debug")
+
+    daemon = subcommands.add_parser("daemon", help="Run Roger continuously until interrupted")
+    daemon.add_argument("--config", type=Path, default=None, help="Path to roger TOML config")
+    daemon.add_argument("--project-dir", type=Path, default=Path.cwd(), help="Current project directory")
+    daemon.add_argument("--manual-wake", action="store_true", help="Use and trigger the manual wake adapter before each cycle")
+    daemon.add_argument("--preview-action", choices=("accept", "cancel", "timeout"), default="accept")
+    daemon.add_argument("--offline", action="store_true", help="Use offline/llama.cpp pi-agent mode")
+    daemon.add_argument("--no-tts", action="store_true", help="Do not synthesize spoken output")
+    daemon.add_argument("--quiet", action="store_true", help="Suppress console and desktop feedback")
+    daemon.add_argument("--no-overlay", action="store_true", help="Disable the floating desktop overlay")
+    daemon.add_argument("--console-feedback", action="store_true", help="Print phase feedback in the terminal")
+    daemon.add_argument("--desktop-notifications", action="store_true", help="Also send notify-send desktop notifications")
+    daemon.add_argument("--wake-threshold", type=float, default=None, help="Override wake detection threshold for this run")
+    daemon.add_argument("--wake-debug", action="store_true", help="Print NanoWakeWord scores while waiting")
+    daemon.add_argument("--wake-debug-min-score", type=float, default=0.2, help="Minimum score printed by --wake-debug")
+    daemon.add_argument("--max-cycles", type=int, default=None, help="Stop after N wake/instruction cycles; useful for tests")
+    daemon.add_argument("--result-hold-seconds", type=float, default=10.0, help="Keep the result visible before listening for the next wake")
+    daemon.add_argument("--quick-close-seconds", type=float, default=5.0, help="Short pause after goodbye/no-input before listening again")
+
+    wake_file = subcommands.add_parser("wake-file", help="Score a recorded WAV file with the configured wake adapter")
+    wake_file.add_argument("audio", type=Path, help="16 kHz mono PCM WAV containing the wake phrase")
+    wake_file.add_argument("--config", type=Path, default=None, help="Path to roger TOML config")
+    wake_file.add_argument("--project-dir", type=Path, default=Path.cwd(), help="Current project directory")
+    wake_file.add_argument("--wake-threshold", type=float, default=None, help="Override wake detection threshold for this run")
+    wake_file.add_argument("--blocksize", type=int, default=1280, help="Frames per wake inference chunk")
+
+    task = subcommands.add_parser("task", help="Dispatch a typed task through Roger routing/pi-agent")
+    task.add_argument("instruction", help="Task instruction to send to pi-agent")
+    task.add_argument("--session", choices=("system", "current-project"), default=None, help="Force a Roger session")
+    task.add_argument("--config", type=Path, default=None, help="Path to roger TOML config")
+    task.add_argument("--project-dir", type=Path, default=Path.cwd(), help="Current project directory")
+    task.add_argument("--offline", action="store_true", help="Use offline/llama.cpp pi-agent mode")
+    task.add_argument("--no-tts", action="store_true", help="Do not synthesize spoken output")
+    task.add_argument("--no-overlay", action="store_true", help="Disable the floating desktop overlay")
+    task.add_argument("--console-feedback", action="store_true", help="Print phase feedback in the terminal")
+    task.add_argument("--desktop-notifications", action="store_true", help="Also send notify-send desktop notifications")
+
+    cancel = subcommands.add_parser("cancel", help="Attempt to cancel an active Roger/pi-agent task")
+    cancel.add_argument("--session", choices=("system", "current-project"), default=None, help="Target active Roger session")
+    cancel.add_argument("--command", dest="abort_command", choices=("abort", "abort_bash", "abort_retry"), default="abort", help="pi RPC abort command to send")
+    cancel.add_argument("--config", type=Path, default=None, help="Path to roger TOML config")
+    cancel.add_argument("--project-dir", type=Path, default=Path.cwd(), help="Current project directory")
+
+    overlay_demo = subcommands.add_parser("overlay-demo", help="Show the floating Roger overlay with sample content")
+    overlay_demo.add_argument("--config", type=Path, default=None, help="Path to roger TOML config")
+    overlay_demo.add_argument("--project-dir", type=Path, default=Path.cwd(), help="Current project directory")
+    overlay_demo.add_argument("--transcript", default="corre pwd y dime el directorio actual")
+    overlay_demo.add_argument("--result", default="Listo")
+    overlay_demo.add_argument("--duration", type=float, default=5.0, help="Seconds to keep the demo process alive")
+
+    say = subcommands.add_parser("say", help="Speak text with the configured local TTS backend")
+    say.add_argument("text", help="Text to synthesize and play")
+    say.add_argument("--config", type=Path, default=None, help="Path to roger TOML config")
+    say.add_argument("--project-dir", type=Path, default=Path.cwd(), help="Current project directory")
+
+    install = subcommands.add_parser("install-autostart", help="Install Roger daemon autostart for Omarchy/Hyprland")
+    install.add_argument("--config", type=Path, default=None, help="Path to roger TOML config")
+    install.add_argument("--home", type=Path, default=Path.home(), help="Home directory containing .config/hypr")
+    install.add_argument("--project-dir", type=Path, default=Path.cwd(), help="Roger project directory")
+
+    uninstall = subcommands.add_parser("uninstall-autostart", help="Remove Roger daemon autostart for Omarchy/Hyprland")
+    uninstall.add_argument("--config", type=Path, default=None, help="Path to roger TOML config")
+    uninstall.add_argument("--home", type=Path, default=Path.home(), help="Home directory containing .config/hypr")
+    uninstall.add_argument("--project-dir", type=Path, default=Path.cwd(), help="Roger project directory")
+
+    return parser
+
+
+def run(argv: Sequence[str] | None = None, dependencies: RuntimeDependencies | None = None) -> tuple[int, str]:
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    dependencies = dependencies or RuntimeDependencies()
+
+    config = load_config(args.config, project_dir=args.project_dir)
+
+    if args.command == "health":
+        return 0, _format_health(config)
+    if args.command == "route":
+        registry = _registry_from_config(config)
+        return 0, _format_route_decision(Router(registry).route(args.instruction))
+    if args.command == "spike":
+        if args.spike == "wake" and args.write_configs:
+            paths = write_training_configs(config.speech.wake.target_phrase, args.output_dir)
+            path_list = "\n".join(f"- {path}" for path in paths)
+            return 0, f"wake spike: wrote {len(paths)} NanoWakeWord configs\n{path_list}\n"
+        mode = "dry-run" if args.dry_run else "run"
+        return 0, _format_spike(args.spike, mode)
+    if args.command == "listen-once":
+        registry, wake, loop, _feedback = _build_voice_loop(args, config, dependencies)
+        if args.manual_wake and hasattr(wake, "trigger"):
+            wake.trigger()
+        try:
+            result = loop.run_once()
+        except KeyboardInterrupt:
+            return 130, "Roger interrumpido por el usuario\n"
+        return 0, _format_listen_once_result(result)
+    if args.command == "daemon":
+        _registry, wake, loop, feedback = _build_voice_loop(args, config, dependencies)
+        before_cycle = wake.trigger if args.manual_wake and hasattr(wake, "trigger") else None
+        def on_error(error: Exception) -> None:
+            if feedback is not None:
+                feedback.completed("failed", str(error))
+
+        result = RogerDaemon(loop=loop, before_cycle=before_cycle, on_error=on_error).run(
+            max_cycles=args.max_cycles,
+            result_hold_seconds=args.result_hold_seconds,
+            quick_close_seconds=args.quick_close_seconds,
+        )
+        exit_code = 130 if result.status == "interrupted" else 0
+        return exit_code, _format_daemon_result(result)
+    if args.command == "wake-file":
+        wake = dependencies.create_wake_backend(config, force_manual=False)
+        if args.wake_threshold is not None and hasattr(wake, "threshold"):
+            wake.threshold = args.wake_threshold
+        result = _score_wake_file(wake, args.audio, blocksize=args.blocksize)
+        return 0, _format_wake_file_result(result)
+    if args.command == "task":
+        registry = _registry_from_config(config)
+        result = _run_typed_task(args, config, registry, dependencies)
+        exit_code = 1 if result["status"] == "failed" else 0
+        return exit_code, _format_task_result(result)
+    if args.command == "cancel":
+        registry = _registry_from_config(config)
+        runner = dependencies.create_pi_runner(config, registry, offline=False)
+        result = runner.cancel_active(args.session, command=args.abort_command)
+        exit_code = 0 if result.accepted else 1
+        return exit_code, _format_cancel_result(result)
+    if args.command == "overlay-demo":
+        feedback = dependencies.create_overlay_feedback(config)
+        feedback.wake_detected("hola roger", 1.0)
+        feedback.capturing_instruction()
+        feedback.transcription_ready(args.transcript)
+        feedback.dispatching("current-project")
+        feedback.completed("complete", args.result)
+        if args.duration > 0:
+            time.sleep(args.duration)
+        return 0, "overlay demo sent\n"
+    if args.command == "say":
+        speaker = dependencies.create_tts_speaker(config, no_tts=False)
+        speak_best_effort(speaker, args.text)
+        return 0, "Roger say result\nspoken: yes\n"
+    if args.command == "install-autostart":
+        result = AutostartInstaller(home=args.home, project_dir=args.project_dir).install()
+        status = "installed" if result.changed else "already installed"
+        backup = f"\nbackup: {result.backup_path}" if result.backup_path else ""
+        return 0, f"Roger autostart {status}\npath: {result.autostart_path}{backup}\n"
+    if args.command == "uninstall-autostart":
+        result = AutostartInstaller(home=args.home, project_dir=args.project_dir).uninstall()
+        status = "uninstalled" if result.changed else "not installed"
+        backup = f"\nbackup: {result.backup_path}" if result.backup_path else ""
+        return 0, f"Roger autostart {status}\npath: {result.autostart_path}{backup}\n"
+
+    return 2, f"Unsupported command: {args.command}\n"
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    if argv is None:
+        env = cuda_env_for_reexec(sys.argv)
+        if env is not None:
+            os.execvpe(sys.argv[0], sys.argv, env)
+    exit_code, output = run(argv)
+    print(output, end="" if output.endswith("\n") else "\n")
+    return exit_code
+
+
+def _format_health(config) -> str:
+    sessions = ", ".join(sorted(config.sessions))
+    routing_errors = _registry_from_config(config).validate()
+    routing_status = "valid" if not routing_errors else "; ".join(routing_errors)
+    lines = [
+        "Roger health",
+        f"wake: {config.speech.wake.backend}",
+        f"target: {config.speech.wake.target_phrase}",
+        f"wake threshold: {config.speech.wake.threshold}",
+        f"wake architectures: {', '.join(config.speech.wake.architectures)}",
+        f"vad: {config.speech.vad.backend}",
+        f"stt: {config.speech.stt.backend}",
+        f"stt model: {config.speech.stt.model}",
+        f"stt device: {config.speech.stt.device}",
+        f"stt compute type: {config.speech.stt.compute_type}",
+        f"tts: {config.speech.tts.backend}",
+        f"tts local files only: {config.speech.tts.local_files_only}",
+        f"tts device: {config.speech.tts.device or '(backend default)'}",
+        f"online model provider: {config.models.online.provider}",
+        f"automatic fallback: {config.models.automatic_fallback}",
+        f"fallback enabled: {config.models.fallback_enabled}",
+        f"online probe URL: {config.models.online_probe_url or '(not configured)'}",
+        f"provider probe timeout seconds: {config.models.probe_timeout_seconds}",
+        f"offline model provider: {config.models.offline.provider}",
+        f"offline model: {config.models.offline.model or '(provider default)'}",
+        f"offline model base URL: {config.models.offline.base_url or '(not configured)'}",
+        f"offline timeout seconds: {config.models.offline.timeout_seconds or '(disabled)'}",
+        f"sessions: {sessions}",
+        f"routing config: {routing_status}",
+    ]
+    return "\n".join(lines) + "\n"
+
+
+def _format_spike(spike: str, mode: str) -> str:
+    candidates: list[str]
+    if spike == "wake":
+        candidates = list(ARCHITECTURES)
+    elif spike == "vad":
+        candidates = [candidate["backend"] for candidate in build_vad_plan()["candidates"]]
+    elif spike == "stt":
+        candidates = [candidate["backend"] for candidate in build_stt_plan()["candidates"]]
+    elif spike == "tts":
+        candidates = [candidate["backend"] for candidate in build_tts_plan()["candidates"]]
+    else:
+        candidates = []
+    suffix = f"candidates: {', '.join(candidates)}" if candidates else "candidates: none"
+    return f"{spike} spike ({mode})\n{suffix}\n"
+
+
+def _format_listen_once_result(result) -> str:
+    dispatched = "yes" if result.dispatched else "no"
+    lines = [
+        "Roger listen-once result",
+        f"status: {result.status}",
+        f"dispatched: {dispatched}",
+    ]
+    if result.message:
+        lines.append(f"message: {result.message}")
+    return "\n".join(lines) + "\n"
+
+
+def _format_daemon_result(result) -> str:
+    return (
+        "Roger daemon result\n"
+        f"status: {result.status}\n"
+        f"cycles: {result.cycles}\n"
+        f"dispatched: {result.dispatched}\n"
+    )
+
+
+def _build_voice_loop(args, config: RogerConfig, dependencies: RuntimeDependencies):
+    registry = _registry_from_config(config)
+    wake = dependencies.create_wake_backend(config, force_manual=args.manual_wake)
+    if args.wake_threshold is not None and hasattr(wake, "threshold"):
+        wake.threshold = args.wake_threshold
+    if args.wake_debug and hasattr(wake, "score_callback"):
+        wake.score_callback = _build_wake_score_callback(quiet=args.quiet, min_score=args.wake_debug_min_score)
+    feedback = None if args.quiet else CompositeFeedback(_feedback_sinks(args, config, dependencies))
+    speaker = dependencies.create_tts_speaker(config, no_tts=args.no_tts)
+    if feedback is not None and hasattr(speaker, "warning_callback"):
+        speaker.warning_callback = lambda message: feedback.completed("tts_degraded", message)
+    loop = dependencies.voice_loop_class(
+        registry,
+        wake,
+        dependencies.create_vad_backend(config),
+        dependencies.create_stt_backend(config),
+        dependencies.create_pi_runner(config, registry, offline=args.offline),
+        speaker,
+        preview_action=args.preview_action,
+        feedback=feedback,
+    )
+    return registry, wake, loop, feedback
+
+
+def _score_wake_file(wake, audio_path: Path, blocksize: int = 1280) -> dict[str, object]:
+    scores: list[float] = []
+    detections = []
+    previous_callback = getattr(wake, "score_callback", None)
+
+    def collect_score(score: float) -> None:
+        scores.append(score)
+        if previous_callback is not None:
+            previous_callback(score)
+
+    if hasattr(wake, "score_callback"):
+        wake.score_callback = collect_score
+
+    with wave.open(str(audio_path), "rb") as wav:
+        if wav.getsampwidth() != 2:
+            raise ValueError("wake-file expects 16-bit PCM WAV")
+        if wav.getnchannels() != 1:
+            raise ValueError("wake-file expects mono WAV")
+        while True:
+            frames = wav.readframes(blocksize)
+            if not frames:
+                break
+            samples = np.frombuffer(frames, dtype=np.int16)
+            detection = wake.predict_samples(samples)
+            if detection is not None:
+                detections.append(detection)
+
+    max_score = max(scores) if scores else 0.0
+    best_detection = max(detections, key=lambda item: item.score) if detections else None
+    return {
+        "detected": best_detection is not None,
+        "max_score": max_score,
+        "phrase": best_detection.phrase if best_detection is not None else "",
+        "threshold": getattr(wake, "threshold", None),
+    }
+
+
+def _format_wake_file_result(result: dict[str, object]) -> str:
+    detected = "yes" if result["detected"] else "no"
+    lines = [
+        "Roger wake-file result",
+        f"detected: {detected}",
+        f"max score: {result['max_score']:.3f}",
+    ]
+    if result.get("threshold") is not None:
+        lines.append(f"threshold: {result['threshold']}")
+    if result.get("phrase"):
+        lines.append(f"phrase: {result['phrase']}")
+    return "\n".join(lines) + "\n"
+
+
+def _run_typed_task(args, config: RogerConfig, registry: SessionRegistry, dependencies: RuntimeDependencies) -> dict[str, str | bool]:
+    feedback = CompositeFeedback(_feedback_sinks(args, config, dependencies))
+    if args.session is None:
+        route = Router(registry).route(args.instruction)
+        if route.needs_clarification:
+            return {"status": "needs_clarification", "session": "", "response": route.question, "dispatched": False}
+        session_name = route.session_name
+    else:
+        session_name = args.session
+    assert session_name is not None
+
+    feedback.transcription_ready(args.instruction)
+    feedback.dispatching(session_name)
+    runner = dependencies.create_pi_runner(config, registry, offline=args.offline)
+    speaker = dependencies.create_tts_speaker(config, no_tts=args.no_tts)
+    try:
+        response = runner.run_task(session_name, args.instruction)
+    except Exception as error:
+        message = str(error)
+        feedback.completed("failed", message)
+        if not args.no_tts:
+            speak_best_effort(speaker, summarize_for_speech(message))
+        log_path = _task_log_path(runner)
+        return {"status": "failed", "session": session_name, "response": message, "dispatched": True, "log": log_path}
+    feedback.completed("complete", response)
+    if not args.no_tts:
+        speak_best_effort(speaker, summarize_for_speech(response))
+    log_path = _task_log_path(runner)
+    return {"status": "complete", "session": session_name, "response": response, "dispatched": True, "log": log_path}
+
+
+def _format_task_result(result: dict[str, str | bool]) -> str:
+    lines = [
+        "Roger task result",
+        f"status: {result['status']}",
+        f"dispatched: {'yes' if result['dispatched'] else 'no'}",
+    ]
+    if result.get("session"):
+        lines.append(f"session: {result['session']}")
+    if result.get("response"):
+        lines.append("response:")
+        lines.append(str(result["response"]))
+    if result.get("log"):
+        lines.append(f"log: {result['log']}")
+    return "\n".join(lines) + "\n"
+
+
+def _format_cancel_result(result) -> str:
+    lines = [
+        "Roger cancel result",
+        f"status: {result.status}",
+        f"accepted: {'yes' if result.accepted else 'no'}",
+    ]
+    if result.session_name:
+        lines.append(f"session: {result.session_name}")
+    if result.command:
+        lines.append(f"command: {result.command}")
+    if result.message:
+        lines.append(f"message: {result.message}")
+    return "\n".join(lines) + "\n"
+
+
+def _format_route_decision(decision) -> str:
+    lines = ["Roger route result"]
+    if decision.needs_clarification:
+        lines.append("status: needs_clarification")
+        lines.append(f"question: {decision.question}")
+    else:
+        lines.append("status: routed")
+        lines.append(f"session: {decision.session_name}")
+    lines.append(f"matched rule: {decision.matched_rule}")
+    lines.append(f"confidence: {decision.confidence}")
+    lines.append(f"reason: {decision.reason}")
+    return "\n".join(lines) + "\n"
+
+
+def _task_log_path(runner) -> str:
+    log = getattr(runner, "last_task_log", None)
+    return str(getattr(log, "path", "") or "") if log is not None else ""
+
+
+def _registry_from_config(config: RogerConfig) -> SessionRegistry:
+    defaults = {entry.name: entry for entry in SessionRegistry.default().entries()}
+    entries = {}
+    for name, session in config.sessions.items():
+        default_entry = defaults.get(name)
+        entries[name] = SessionEntry(
+            name=name,
+            cwd=session.cwd,
+            description=session.description,
+            routing_keywords=session.routing_keywords or (default_entry.routing_keywords if default_entry else []),
+            ambiguity_keywords=session.ambiguity_keywords or (default_entry.ambiguity_keywords if default_entry else []),
+            destructive_keywords=session.destructive_keywords or (default_entry.destructive_keywords if default_entry else []),
+            reuse_session=session.reuse_session,
+        )
+    return SessionRegistry(entries)
+
+
+def _create_pi_runner(config: RogerConfig, registry: SessionRegistry, offline: bool = False) -> PiAgentRunner:
+    session_manager = PiSessionManager(
+        registry=registry,
+        session_dir=Path(".roger/pi-sessions"),
+        offline_provider=config.models.offline.provider,
+        offline_model=config.models.offline.model,
+        offline_base_url=config.models.offline.base_url,
+        offline_timeout_seconds=config.models.offline.timeout_seconds,
+    )
+    online_probe = None
+    if config.models.online_probe_url:
+        online_probe = make_http_online_probe(
+            config.models.online_probe_url,
+            timeout_seconds=config.models.probe_timeout_seconds,
+        )
+    policy = ModelAvailabilityPolicy(
+        explicit_offline=offline,
+        automatic_fallback=config.models.automatic_fallback,
+        fallback_enabled=config.models.fallback_enabled,
+        online_probe=online_probe,
+    )
+    return PiAgentRunner(
+        session_manager=session_manager,
+        offline=offline,
+        availability_policy=policy,
+        task_log_store=TaskLogStore(),
+    )
+
+
+def _create_tts_speaker(config: RogerConfig, no_tts: bool = False):
+    if no_tts:
+        return NoopSpeaker()
+    return SafeSpeaker(SynthesizingSpeaker(create_tts_backend(config)))
+
+
+def _create_overlay_feedback(config: RogerConfig):
+    return OverlayFeedback()
+
+
+def _feedback_sinks(args, config: RogerConfig, dependencies: RuntimeDependencies):
+    sinks = []
+    if getattr(args, "console_feedback", False):
+        sinks.append(ConsoleFeedback(echo=True, show_waiting=False))
+    if not getattr(args, "no_overlay", False):
+        sinks.append(dependencies.create_overlay_feedback(config))
+    if getattr(args, "desktop_notifications", False):
+        sinks.append(SystemFeedback())
+    return sinks
+
+
+def _build_wake_score_callback(quiet: bool = False, min_score: float = 0.2):
+    def callback(score: float) -> None:
+        if not quiet and score >= min_score:
+            print(f"wake score={score:.3f}", flush=True)
+
+    return callback
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
