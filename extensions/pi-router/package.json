@@ -1,0 +1,16 @@
+{
+  "name": "pi-router",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Pi extension for Spanish-English prompt routing and thinking-level selection",
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "check": "npm test"
+  },
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}

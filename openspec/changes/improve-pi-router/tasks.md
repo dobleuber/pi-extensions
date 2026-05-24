@@ -1,6 +1,6 @@
 ## 1. Extension Structure and Configuration
 
-- [ ] 1.1 Create the Pi router extension package/module structure with installable entry points and tests.
+- [x] 1.1 Create the Pi router extension package/module structure with installable entry points and tests.
 - [ ] 1.2 Add router configuration for modes `off`, `on`, and `preview`, plus global, session, and single-prompt overrides.
 - [ ] 1.3 Add configurable local router model settings for provider, model, base URL, timeout, fallback mode, and max input size.
 - [ ] 1.4 Add status/diagnostic surfaces showing router mode, router model, work model, and degraded/fallback state.
