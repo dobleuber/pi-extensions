@@ -266,7 +266,7 @@ Online mode leaves pi's configured default model untouched.
 Offline mode builds pi args like:
 
 ```bash
-pi --mode rpc --provider llama-cpp --model gemma4
+pi --mode rpc --offline --provider llama-cpp --model gemma4
 ```
 
 llama.cpp must be running separately. On this system the current model is registered in `~/.config/llama.cpp/models.json` and exposed through the wrapper:
@@ -286,4 +286,14 @@ llama-gemma4-server --list-devices
 # CUDA0: NVIDIA GeForce RTX 4080 Laptop GPU ...
 ```
 
-Roger health shows the configured base URL and the offline RPC idle timeout. Before offline dispatch, Roger checks the llama.cpp `/v1/models` endpoint and reports local runtime unavailability instead of silently dropping tasks. Offline/local RPC reads are bounded by `models.offline.timeout_seconds` (default `45.0`) so a slow or runaway local model does not hang the voice interaction indefinitely.
+Roger health shows the configured base URL, automatic fallback settings, probe timeout, and the offline RPC idle timeout. By default Roger uses pi's online default when available, but can fall back to the configured llama.cpp profile when explicit `--offline` is requested or when a recognized online provider/network startup failure occurs. Before offline dispatch, Roger checks the llama.cpp `/v1/models` endpoint and reports local runtime or model unavailability instead of silently dropping tasks. Offline/local RPC reads are bounded by `models.offline.timeout_seconds` (default `45.0`) so a slow or runaway local model does not hang the voice interaction indefinitely.
+
+## Task progress logs
+
+Each dispatched pi-agent task creates a structured JSONL task log under:
+
+```text
+.roger/logs/
+```
+
+Typed task CLI output includes a `log: ...` line when a persisted log is available. Logs contain task start/completion events, assistant text deltas, tool execution start/update/end events, prompt rejection/failure details, session name, and selected model mode (`online` or `offline-fallback`). The default retention keeps the most recent 50 JSONL files and prunes older files. Roger keeps spoken output concise; detailed progress remains in the textual log.

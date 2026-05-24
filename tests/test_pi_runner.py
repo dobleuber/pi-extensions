@@ -163,6 +163,44 @@ class PiAgentRunnerTests(unittest.TestCase):
 
         self.assertEqual(len(calls), 1)
 
+    def test_runner_records_streamed_events_in_task_log_and_observer(self):
+        class StreamingClient(FakeClient):
+            def stream_until_agent_end(self):
+                yield {"type": "message_update", "assistantMessageEvent": {"type": "text_delta", "delta": "ok"}}
+                yield {"type": "tool_execution_start", "toolName": "bash", "toolCallId": "t1"}
+                yield {"type": "agent_end"}
+
+        observed = []
+        registry = SessionRegistry.default(project_dir=Path("/tmp/project"))
+        manager = PiSessionManager(registry=registry, session_dir=Path("/tmp/sessions"))
+        runner = PiAgentRunner(
+            session_manager=manager,
+            client_factory=lambda command, cwd: StreamingClient(collected_text="ok"),
+            event_observer=observed.append,
+        )
+
+        result = runner.run_task("system", "responde ok")
+
+        self.assertEqual(result, "ok")
+        self.assertEqual([event["type"] for event in observed], ["message_update", "tool_execution_start", "agent_end"])
+        self.assertEqual(runner.last_task_log.status, "complete")
+        self.assertIn("t1", runner.last_task_log.tools)
+
+    def test_runner_records_prompt_rejection_in_task_log(self):
+        class RejectingClient(FakeClient):
+            def prompt(self, message):
+                return {"success": False, "error": "provider unavailable"}
+
+        registry = SessionRegistry.default(project_dir=Path("/tmp/project"))
+        manager = PiSessionManager(registry=registry, session_dir=Path("/tmp/sessions"))
+        runner = PiAgentRunner(session_manager=manager, client_factory=lambda command, cwd: RejectingClient())
+
+        with self.assertRaisesRegex(RuntimeError, "provider unavailable"):
+            runner.run_task("system", "instala steam")
+
+        self.assertEqual(runner.last_task_log.status, "failed")
+        self.assertIn("provider unavailable", runner.last_task_log.status_context)
+
 
 if __name__ == "__main__":
     unittest.main()

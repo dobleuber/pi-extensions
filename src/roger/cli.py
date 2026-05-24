@@ -30,6 +30,7 @@ from roger.routing.registry import SessionEntry, SessionRegistry
 from roger.routing.router import Router
 from roger.summarization import summarize_for_speech
 from roger.tts_speaker import NoopSpeaker, SafeSpeaker, SynthesizingSpeaker, speak_best_effort
+from roger.ui.logs import TaskLogStore
 from roger.voice_loop import VoiceLoop
 
 
@@ -399,11 +400,13 @@ def _run_typed_task(args, config: RogerConfig, registry: SessionRegistry, depend
         feedback.completed("failed", message)
         if not args.no_tts:
             speak_best_effort(speaker, summarize_for_speech(message))
-        return {"status": "failed", "session": session_name, "response": message, "dispatched": True}
+        log_path = _task_log_path(runner)
+        return {"status": "failed", "session": session_name, "response": message, "dispatched": True, "log": log_path}
     feedback.completed("complete", response)
     if not args.no_tts:
         speak_best_effort(speaker, summarize_for_speech(response))
-    return {"status": "complete", "session": session_name, "response": response, "dispatched": True}
+    log_path = _task_log_path(runner)
+    return {"status": "complete", "session": session_name, "response": response, "dispatched": True, "log": log_path}
 
 
 def _format_task_result(result: dict[str, str | bool]) -> str:
@@ -417,7 +420,14 @@ def _format_task_result(result: dict[str, str | bool]) -> str:
     if result.get("response"):
         lines.append("response:")
         lines.append(str(result["response"]))
+    if result.get("log"):
+        lines.append(f"log: {result['log']}")
     return "\n".join(lines) + "\n"
+
+
+def _task_log_path(runner) -> str:
+    log = getattr(runner, "last_task_log", None)
+    return str(getattr(log, "path", "") or "") if log is not None else ""
 
 
 def _registry_from_config(config: RogerConfig) -> SessionRegistry:
@@ -450,7 +460,12 @@ def _create_pi_runner(config: RogerConfig, registry: SessionRegistry, offline: b
         fallback_enabled=config.models.fallback_enabled,
         online_probe=online_probe,
     )
-    return PiAgentRunner(session_manager=session_manager, offline=offline, availability_policy=policy)
+    return PiAgentRunner(
+        session_manager=session_manager,
+        offline=offline,
+        availability_policy=policy,
+        task_log_store=TaskLogStore(),
+    )
 
 
 def _create_tts_speaker(config: RogerConfig, no_tts: bool = False):

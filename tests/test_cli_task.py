@@ -6,6 +6,7 @@ from roger import cli
 class FakeRunner:
     def __init__(self):
         self.calls = []
+        self.last_task_log = None
 
     def run_task(self, session_name, instruction):
         self.calls.append((session_name, instruction))
@@ -85,6 +86,27 @@ class CliTaskTests(unittest.TestCase):
         self.assertEqual(overlay.calls[0], ("transcription", "corre pwd"))
         self.assertEqual(overlay.calls[1], ("dispatching", "current-project"))
         self.assertEqual(overlay.calls[2], ("completed", "complete", "Respuesta real de pi"))
+
+    def test_task_command_includes_task_log_reference_when_available(self):
+        from roger.ui.logs import TaskLog
+
+        runner = FakeRunner()
+        log = TaskLog(session_name="current-project")
+        log.start("corre pwd")
+        log.complete()
+        log.path = ".roger/logs/task.jsonl"
+        runner.last_task_log = log
+
+        exit_code, output = cli.run(
+            ["task", "--session", "current-project", "corre pwd", "--no-tts", "--no-overlay"],
+            dependencies=cli.RuntimeDependencies(
+                create_pi_runner=lambda config, registry, offline=False: runner,
+                create_tts_speaker=lambda config, no_tts=False: FakeSpeaker(),
+            ),
+        )
+
+        self.assertEqual(exit_code, 0)
+        self.assertIn("log: .roger/logs/task.jsonl", output)
 
     def test_task_command_speaks_response_when_tts_is_enabled(self):
         runner = FakeRunner()

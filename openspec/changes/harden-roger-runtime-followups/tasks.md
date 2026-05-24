@@ -8,11 +8,11 @@
 
 ## 2. Task Progress Logging
 
-- [ ] 2.1 Extend `TaskLog` to store structured assistant, tool, retry, queue, error, start, and completion events.
-- [ ] 2.2 Add event observer/callback support to `PiAgentRunner` so streamed pi RPC events are not discarded.
-- [ ] 2.3 Render task logs for CLI and overlay with concise current status plus a detailed textual surface or persistent log reference.
-- [ ] 2.4 Add size limits, truncation/rotation behavior, and documented log location for daemon runs.
-- [ ] 2.5 Add tests covering text deltas, tool start/update/end correlation, prompt rejection, task failure, and long output truncation.
+- [x] 2.1 Extend `TaskLog` to store structured assistant, tool, retry, queue, error, start, and completion events.
+- [x] 2.2 Add event observer/callback support to `PiAgentRunner` so streamed pi RPC events are not discarded.
+- [x] 2.3 Render task logs for CLI and overlay with concise current status plus a detailed textual surface or persistent log reference.
+- [x] 2.4 Add size limits, truncation/rotation behavior, and documented log location for daemon runs.
+- [x] 2.5 Add tests covering text deltas, tool start/update/end correlation, prompt rejection, task failure, and long output truncation.
 
 ## 3. Resilient Local Speech Output
 
@@ -41,7 +41,7 @@
 ## 6. Documentation and Verification
 
 - [ ] 6.1 Update setup docs with automatic offline fallback behavior, llama.cpp prerequisites, and visible fallback status.
-- [ ] 6.2 Document task log location, log retention/truncation behavior, and how to inspect recent daemon task logs.
+- [x] 6.2 Document task log location, log retention/truncation behavior, and how to inspect recent daemon task logs.
 - [ ] 6.3 Document cancellation phrases/CLI commands and limitations of pi RPC abort semantics.
 - [ ] 6.4 Update troubleshooting docs for local TTS degradation and text-only fallback.
 - [ ] 6.5 Run the full unit suite, focused smoke tests for typed tasks, and OpenSpec strict validation for this change.
