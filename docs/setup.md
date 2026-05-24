@@ -212,7 +212,7 @@ uv run roger say "Hola, soy Roger."
 
 On Omarchy/PipeWire, Roger prefers `pw-play` for playback and falls back to `sounddevice` only if `pw-play` is unavailable.
 
-Roger uses Kokoro local files by default (`speech.tts.local_files_only = true`) and resolves the model from the Hugging Face cache without network calls. Kokoro runs as a local PyTorch TTS model inside Roger; it is not served through llama.cpp. On this system Roger sets `speech.tts.device = "cuda"`, so Kokoro moves its model to the RTX GPU when available. If needed, pin explicit paths in `roger.toml`:
+Roger uses Kokoro local files by default (`speech.tts.local_files_only = true`) and resolves the model from the Hugging Face cache without network calls. Kokoro runs as a local PyTorch TTS model inside Roger; it is not served through llama.cpp. On this system Roger sets `speech.tts.device = "cuda"`, so Kokoro moves its model to the RTX GPU when available. TTS is best-effort: if Kokoro synthesis or local playback fails, Roger keeps the textual result/overlay visible and continues in text-only degraded mode instead of changing the task result. If needed, pin explicit paths in `roger.toml`:
 
 ```toml
 [speech.tts]
@@ -340,3 +340,29 @@ uv run roger route "abre mis notas"
 ```
 
 The output includes selected session, matched rule, confidence, and reason. `roger health` reports routing config validation errors such as malformed keyword rules.
+
+## Troubleshooting local TTS degradation
+
+Roger never falls back to cloud TTS. If Kokoro model assets, CUDA/PyTorch, PipeWire playback, or `sounddevice` fail, Roger reports a visible degraded-speech warning and keeps the task text visible.
+
+Useful checks:
+
+```bash
+uv run roger health
+uv run roger say "Hola, soy Roger."
+python - <<'PY'
+import torch
+print(torch.cuda.is_available())
+print(torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'no cuda')
+PY
+which pw-play
+```
+
+Temporary text-only operation:
+
+```bash
+uv run roger task --no-tts --no-overlay --session system "responde exactamente: ok"
+uv run roger daemon --no-tts
+```
+
+If `roger say` fails but task execution succeeds, inspect the visible result and `.roger/logs/` task log first; speech failure is isolated from task completion.

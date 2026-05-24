@@ -40,8 +40,8 @@
 
 ## 6. Documentation and Verification
 
-- [ ] 6.1 Update setup docs with automatic offline fallback behavior, llama.cpp prerequisites, and visible fallback status.
+- [x] 6.1 Update setup docs with automatic offline fallback behavior, llama.cpp prerequisites, and visible fallback status.
 - [x] 6.2 Document task log location, log retention/truncation behavior, and how to inspect recent daemon task logs.
 - [x] 6.3 Document cancellation phrases/CLI commands and limitations of pi RPC abort semantics.
-- [ ] 6.4 Update troubleshooting docs for local TTS degradation and text-only fallback.
-- [ ] 6.5 Run the full unit suite, focused smoke tests for typed tasks, and OpenSpec strict validation for this change.
+- [x] 6.4 Update troubleshooting docs for local TTS degradation and text-only fallback.
+- [x] 6.5 Run the full unit suite, focused smoke tests for typed tasks, and OpenSpec strict validation for this change.
