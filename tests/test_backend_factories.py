@@ -29,7 +29,9 @@ class BackendFactoryTests(unittest.TestCase):
         self.assertEqual(stt.language, "es")
         self.assertEqual(stt.device, "cuda")
         self.assertEqual(stt.compute_type, "float16")
-        self.assertIsInstance(create_tts_backend(config), KokoroTtsAdapter)
+        tts = create_tts_backend(config)
+        self.assertIsInstance(tts, KokoroTtsAdapter)
+        self.assertEqual(tts.device, "cuda")
 
     def test_manual_wake_backend_is_available_for_development(self):
         config = RogerConfig.default()

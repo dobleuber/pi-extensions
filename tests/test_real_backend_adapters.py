@@ -330,12 +330,16 @@ class RealAdapterBehaviorTests(unittest.TestCase):
                     warnings.warn("dropout option adds dropout after all but last recurrent layer", UserWarning)
                     calls["model"] = {"repo_id": repo_id, "config": config, "model": model}
 
+                def to(self, device):
+                    calls["model_device"] = device
+                    return self
+
                 def eval(self):
                     return self
 
             class KPipeline:
                 def __init__(self, lang_code, repo_id=None, model=True, device=None):
-                    calls["pipeline"] = {"repo_id": repo_id, "model": model}
+                    calls["pipeline"] = {"repo_id": repo_id, "model": model, "device": device}
 
                 def __call__(self, text, voice=None, speed=1):
                     calls["voice"] = voice
@@ -349,6 +353,7 @@ class RealAdapterBehaviorTests(unittest.TestCase):
                 model_path=model,
                 voice_path=voice,
                 local_files_only=True,
+                device="cuda",
             )
 
             with warnings.catch_warnings(record=True) as captured:
@@ -358,6 +363,8 @@ class RealAdapterBehaviorTests(unittest.TestCase):
         self.assertEqual(calls["model"]["repo_id"], "hexgrad/Kokoro-82M")
         self.assertEqual(calls["model"]["config"], str(config))
         self.assertEqual(calls["model"]["model"], str(model))
+        self.assertEqual(calls["model_device"], "cuda")
+        self.assertEqual(calls["pipeline"]["device"], "cuda")
         self.assertEqual(calls["voice"], str(voice))
         self.assertEqual(captured, [])
 

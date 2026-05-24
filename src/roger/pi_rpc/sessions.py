@@ -12,6 +12,8 @@ class PiSessionManager:
     session_dir: Path
     offline_provider: str = "llama-cpp"
     offline_model: str | None = "gemma4"
+    offline_base_url: str | None = "http://127.0.0.1:11434/v1"
+    offline_timeout_seconds: float | None = 45.0
 
     def build_command(self, session_name: str, offline: bool = False) -> list[str]:
         session_path = self.session_dir / session_name

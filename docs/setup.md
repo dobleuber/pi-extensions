@@ -212,13 +212,14 @@ uv run roger say "Hola, soy Roger."
 
 On Omarchy/PipeWire, Roger prefers `pw-play` for playback and falls back to `sounddevice` only if `pw-play` is unavailable.
 
-Roger uses Kokoro local files by default (`speech.tts.local_files_only = true`) and resolves the model from the Hugging Face cache without network calls. If needed, pin explicit paths in `roger.toml`:
+Roger uses Kokoro local files by default (`speech.tts.local_files_only = true`) and resolves the model from the Hugging Face cache without network calls. Kokoro runs as a local PyTorch TTS model inside Roger; it is not served through llama.cpp. On this system Roger sets `speech.tts.device = "cuda"`, so Kokoro moves its model to the RTX GPU when available. If needed, pin explicit paths in `roger.toml`:
 
 ```toml
 [speech.tts]
 backend = "kokoro"
 voice = "ef_dora"
 repo_id = "hexgrad/Kokoro-82M"
+device = "cuda"
 local_files_only = true
 config_path = "~/.cache/huggingface/hub/models--hexgrad--Kokoro-82M/snapshots/<revision>/config.json"
 model_path = "~/.cache/huggingface/hub/models--hexgrad--Kokoro-82M/snapshots/<revision>/kokoro-v1_0.pth"
@@ -278,4 +279,11 @@ curl -fsS http://127.0.0.1:11434/v1/models
 LLAMA_CPP_CTX=8192 llama-gemma4-server --no-warmup
 ```
 
-pi is configured with a local OpenAI-compatible provider named `llama-cpp` in `~/.pi/agent/models.json`. Roger reports offline fallback unavailability instead of silently dropping tasks.
+pi is configured with a local OpenAI-compatible provider named `llama-cpp` in `~/.pi/agent/models.json`. The local llama.cpp build should list the RTX GPU:
+
+```bash
+llama-gemma4-server --list-devices
+# CUDA0: NVIDIA GeForce RTX 4080 Laptop GPU ...
+```
+
+Roger health shows the configured base URL and the offline RPC idle timeout. Before offline dispatch, Roger checks the llama.cpp `/v1/models` endpoint and reports local runtime unavailability instead of silently dropping tasks. Offline/local RPC reads are bounded by `models.offline.timeout_seconds` (default `45.0`) so a slow or runaway local model does not hang the voice interaction indefinitely.

@@ -1,5 +1,6 @@
 import io
 import json
+import os
 import unittest
 
 from roger.pi_rpc.client import PiRpcClient
@@ -62,6 +63,19 @@ class PiRpcClientTests(unittest.TestCase):
 
         self.assertEqual(len(events), 2)
         self.assertEqual(client.collected_text, "Hecho")
+
+    def test_stream_until_agent_end_times_out_when_no_rpc_events_arrive(self):
+        read_fd, write_fd = os.pipe()
+        process = FakeProcess([])
+        process.stdout = os.fdopen(read_fd, "r", encoding="utf-8")
+        client = PiRpcClient(process_factory=lambda _: process, event_timeout_seconds=0.01)
+        client.start(["pi", "--mode", "rpc"])
+        try:
+            with self.assertRaisesRegex(TimeoutError, "Timed out waiting for pi RPC event"):
+                list(client.stream_until_agent_end())
+        finally:
+            os.close(write_fd)
+            process.stdout.close()
 
 
 if __name__ == "__main__":

@@ -1,13 +1,19 @@
 from __future__ import annotations
 
 import json
+import selectors
 import subprocess
 from typing import Any, Callable, Iterable, TextIO
 
 
 class PiRpcClient:
-    def __init__(self, process_factory: Callable[[list[str]], Any] | None = None):
+    def __init__(
+        self,
+        process_factory: Callable[[list[str]], Any] | None = None,
+        event_timeout_seconds: float | None = None,
+    ):
         self._process_factory = process_factory or self._default_process_factory
+        self.event_timeout_seconds = event_timeout_seconds
         self._process: Any | None = None
         self._next_id = 1
         self.collected_text = ""
@@ -61,7 +67,7 @@ class PiRpcClient:
     def _read_events(self) -> Iterable[dict[str, Any]]:
         process = self._require_process()
         while True:
-            line = process.stdout.readline()
+            line = self._readline(process.stdout)
             if not line:
                 break
             if isinstance(line, bytes):
@@ -72,6 +78,22 @@ class PiRpcClient:
             if not line:
                 continue
             yield json.loads(line)
+
+    def _readline(self, stdout: TextIO) -> str:
+        if self.event_timeout_seconds is None:
+            return stdout.readline()
+        try:
+            fileno = stdout.fileno()
+        except (AttributeError, OSError):
+            return stdout.readline()
+        selector = selectors.DefaultSelector()
+        try:
+            selector.register(fileno, selectors.EVENT_READ)
+            if not selector.select(self.event_timeout_seconds):
+                raise TimeoutError(f"Timed out waiting for pi RPC event after {self.event_timeout_seconds} seconds")
+            return stdout.readline()
+        finally:
+            selector.close()
 
     def _collect_text(self, event: dict[str, Any]) -> None:
         if event.get("type") != "message_update":

@@ -100,6 +100,29 @@ class CliTaskTests(unittest.TestCase):
 
         self.assertEqual(speaker.spoken, ["Respuesta real de pi"])
 
+    def test_task_command_reports_runner_failure_without_crashing(self):
+        class FailingRunner:
+            def run_task(self, session_name, instruction):
+                raise RuntimeError("llama.cpp server unavailable")
+
+        speaker = FakeSpeaker()
+        overlay = FakeOverlayFeedback()
+
+        exit_code, output = cli.run(
+            ["task", "--session", "system", "responde exactamente: ok", "--offline"],
+            dependencies=cli.RuntimeDependencies(
+                create_pi_runner=lambda config, registry, offline=False: FailingRunner(),
+                create_tts_speaker=lambda config, no_tts=False: speaker,
+                create_overlay_feedback=lambda config: overlay,
+            ),
+        )
+
+        self.assertEqual(exit_code, 1)
+        self.assertIn("status: failed", output)
+        self.assertIn("llama.cpp server unavailable", output)
+        self.assertEqual(overlay.calls[-1], ("completed", "failed", "llama.cpp server unavailable"))
+        self.assertEqual(speaker.spoken, ["llama.cpp server unavailable"])
+
 
 if __name__ == "__main__":
     unittest.main()

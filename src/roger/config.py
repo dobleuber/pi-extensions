@@ -38,6 +38,7 @@ class TtsConfig:
     backend: str = "kokoro"
     voice: str = "spanish-default"
     repo_id: str = "hexgrad/Kokoro-82M"
+    device: str | None = "cuda"
     config_path: Path | None = None
     model_path: Path | None = None
     voice_path: Path | None = None
@@ -56,12 +57,21 @@ class SpeechConfig:
 class ModelConfig:
     provider: str
     model: str | None = None
+    base_url: str | None = None
+    timeout_seconds: float | None = None
 
 
 @dataclass(frozen=True)
 class ModelsConfig:
     online: ModelConfig = field(default_factory=lambda: ModelConfig(provider="pi-default"))
-    offline: ModelConfig = field(default_factory=lambda: ModelConfig(provider="llama-cpp", model="gemma4"))
+    offline: ModelConfig = field(
+        default_factory=lambda: ModelConfig(
+            provider="llama-cpp",
+            model="gemma4",
+            base_url="http://127.0.0.1:11434/v1",
+            timeout_seconds=45.0,
+        )
+    )
 
 
 @dataclass(frozen=True)

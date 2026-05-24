@@ -194,7 +194,8 @@ def run(argv: Sequence[str] | None = None, dependencies: RuntimeDependencies | N
     if args.command == "task":
         registry = _registry_from_config(config)
         result = _run_typed_task(args, config, registry, dependencies)
-        return 0, _format_task_result(result)
+        exit_code = 1 if result["status"] == "failed" else 0
+        return exit_code, _format_task_result(result)
     if args.command == "overlay-demo":
         feedback = dependencies.create_overlay_feedback(config)
         feedback.wake_detected("hola roger", 1.0)
@@ -248,9 +249,12 @@ def _format_health(config) -> str:
         f"stt compute type: {config.speech.stt.compute_type}",
         f"tts: {config.speech.tts.backend}",
         f"tts local files only: {config.speech.tts.local_files_only}",
+        f"tts device: {config.speech.tts.device or '(backend default)'}",
         f"online model provider: {config.models.online.provider}",
         f"offline model provider: {config.models.offline.provider}",
         f"offline model: {config.models.offline.model or '(provider default)'}",
+        f"offline model base URL: {config.models.offline.base_url or '(not configured)'}",
+        f"offline timeout seconds: {config.models.offline.timeout_seconds or '(disabled)'}",
         f"sessions: {sessions}",
     ]
     return "\n".join(lines) + "\n"
@@ -379,9 +383,16 @@ def _run_typed_task(args, config: RogerConfig, registry: SessionRegistry, depend
     feedback.transcription_ready(args.instruction)
     feedback.dispatching(session_name)
     runner = dependencies.create_pi_runner(config, registry, offline=args.offline)
-    response = runner.run_task(session_name, args.instruction)
-    feedback.completed("complete", response)
     speaker = dependencies.create_tts_speaker(config, no_tts=args.no_tts)
+    try:
+        response = runner.run_task(session_name, args.instruction)
+    except Exception as error:
+        message = str(error)
+        feedback.completed("failed", message)
+        if not args.no_tts:
+            speaker.speak(summarize_for_speech(message))
+        return {"status": "failed", "session": session_name, "response": message, "dispatched": True}
+    feedback.completed("complete", response)
     if not args.no_tts:
         speaker.speak(summarize_for_speech(response))
     return {"status": "complete", "session": session_name, "response": response, "dispatched": True}
@@ -416,6 +427,8 @@ def _create_pi_runner(config: RogerConfig, registry: SessionRegistry, offline: b
         session_dir=Path(".roger/pi-sessions"),
         offline_provider=config.models.offline.provider,
         offline_model=config.models.offline.model,
+        offline_base_url=config.models.offline.base_url,
+        offline_timeout_seconds=config.models.offline.timeout_seconds,
     )
     return PiAgentRunner(session_manager=session_manager, offline=offline)
 

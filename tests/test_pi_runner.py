@@ -58,6 +58,38 @@ class PiAgentRunnerTests(unittest.TestCase):
 
         self.assertEqual(result, "ok")
 
+    def test_runner_strips_repeated_chat_transcript_from_local_model_response(self):
+        client = FakeClient(collected_text="ok\nuser\nresponde exactamente: ok\nassistant\nok<|")
+        registry = SessionRegistry.default(project_dir=Path("/tmp/project"))
+        manager = PiSessionManager(registry=registry, session_dir=Path("/tmp/sessions"))
+        runner = PiAgentRunner(session_manager=manager, client_factory=lambda command, cwd: client)
+
+        result = runner.run_task("system", "responde exactamente: ok")
+
+        self.assertEqual(result, "ok")
+
+    def test_offline_runner_reports_llama_cpp_preflight_failure(self):
+        registry = SessionRegistry.default(project_dir=Path("/tmp/project"))
+        manager = PiSessionManager(registry=registry, session_dir=Path("/tmp/sessions"))
+        runner = PiAgentRunner(
+            session_manager=manager,
+            client_factory=lambda command, cwd: FakeClient(),
+            offline=True,
+            preflight_check=lambda: "llama.cpp server unavailable at http://127.0.0.1:11434/v1",
+        )
+
+        with self.assertRaisesRegex(RuntimeError, "llama.cpp server unavailable"):
+            runner.run_task("system", "responde exactamente: ok")
+
+    def test_runner_rejects_empty_collected_response(self):
+        client = FakeClient(collected_text="<|im_end|>")
+        registry = SessionRegistry.default(project_dir=Path("/tmp/project"))
+        manager = PiSessionManager(registry=registry, session_dir=Path("/tmp/sessions"))
+        runner = PiAgentRunner(session_manager=manager, client_factory=lambda command, cwd: client)
+
+        with self.assertRaisesRegex(RuntimeError, "pi-agent returned no response"):
+            runner.run_task("system", "responde exactamente: ok")
+
     def test_runner_reports_prompt_rejection(self):
         class RejectingClient(FakeClient):
             def prompt(self, message):

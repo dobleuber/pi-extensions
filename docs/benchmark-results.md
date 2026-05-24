@@ -9,7 +9,7 @@ This document records the current default decisions and what still requires empi
 | Wake word | NanoWakeWord LSTM model at `models/wake/nanowakeword/hola_roger_lstm/model/hola_roger_lstm.onnx` | Manual trigger, then openWakeWord if needed | Model loads and listener smoke-tested; no real audio benchmark yet |
 | VAD | Silero VAD | WebRTC VAD | Silence smoke test passed with no speech timestamps |
 | STT | faster-whisper `large-v3-turbo` on CUDA/float16 | whisper.cpp | Tiny silence smoke passed; default moved to GPU quality mode |
-| TTS | Kokoro | Piper | Spanish synthesis smoke test passed with `ef_dora` |
+| TTS | Kokoro on CUDA | Piper | Spanish synthesis smoke test passed with `ef_dora`; Roger config sets `speech.tts.device = "cuda"` |
 | pi integration | RPC | SDK later if needed | Unit-tested fake RPC client |
 | Online model | pi default | n/a | Implemented as no explicit model args |
 | Offline model | llama.cpp (`llama-cpp` provider, `gemma4`) | Ollama (deprecated) | Args implemented; requires local llama.cpp server/model |
