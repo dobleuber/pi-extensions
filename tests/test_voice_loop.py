@@ -2,6 +2,7 @@ import unittest
 from pathlib import Path
 
 from roger.backends.interfaces import AudioSegment, Transcription, WakeDetection
+from roger.pi_rpc.runner import CancellationResult
 from roger.routing.registry import SessionRegistry
 from roger.voice_loop import VoiceLoop, VoiceLoopState
 
@@ -38,10 +39,15 @@ class FakeStt:
 class FakePiRunner:
     def __init__(self):
         self.calls = []
+        self.cancel_calls = []
 
     def run_task(self, session_name, instruction):
         self.calls.append((session_name, instruction))
         return "Listo"
+
+    def cancel_active(self, session_name=None, command="abort"):
+        self.cancel_calls.append((session_name, command))
+        return CancellationResult("cancel_requested", True, "Cancelación solicitada", session_name=session_name, command=command)
 
 
 class FakeTts:
@@ -121,6 +127,24 @@ class VoiceLoopTests(unittest.TestCase):
         self.assertEqual(result.status, "goodbye")
         self.assertFalse(result.dispatched)
         self.assertEqual(result.message, "Hasta luego.")
+
+    def test_stop_phrase_attempts_cancellation_instead_of_routing(self):
+        pi = FakePiRunner()
+        loop = VoiceLoop(
+            SessionRegistry.default(Path("/tmp/project")),
+            FakeWake(WakeDetection("hola roger", 0.99)),
+            FakeVad(),
+            FakeStt("para Roger"),
+            pi,
+            FakeTts(),
+        )
+
+        result = loop.run_once()
+
+        self.assertEqual(result.status, "cancel_requested")
+        self.assertFalse(result.dispatched)
+        self.assertEqual(pi.calls, [])
+        self.assertEqual(pi.cancel_calls, [(None, "abort")])
 
 
 if __name__ == "__main__":

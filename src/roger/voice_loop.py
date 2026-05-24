@@ -84,7 +84,8 @@ class VoiceLoop:
                 dispatched=False,
                 message="",
             )
-        if self.dialogue_control.decide(transcription.text) == DialogueDecision.GOODBYE:
+        dialogue_decision = self.dialogue_control.decide(transcription.text)
+        if dialogue_decision == DialogueDecision.GOODBYE:
             message = "Hasta luego."
             speak_best_effort(self.tts, message)
             if self.feedback is not None:
@@ -92,6 +93,18 @@ class VoiceLoop:
             return VoiceLoopResult(
                 state=VoiceLoopState.LISTENING,
                 status="goodbye",
+                dispatched=False,
+                message=message,
+            )
+        if dialogue_decision == DialogueDecision.STOP:
+            result = self.manual_loop.pi_runner.cancel_active()
+            message = result.message
+            speak_best_effort(self.tts, message)
+            if self.feedback is not None:
+                self.feedback.completed(result.status, message)
+            return VoiceLoopResult(
+                state=VoiceLoopState.LISTENING,
+                status=result.status,
                 dispatched=False,
                 message=message,
             )

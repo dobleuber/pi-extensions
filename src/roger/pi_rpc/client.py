@@ -34,6 +34,15 @@ class PiRpcClient:
         self.send(command)
         return self.read_response(command["id"])
 
+    def abort(self) -> dict[str, Any]:
+        return self._control_command("abort")
+
+    def abort_bash(self) -> dict[str, Any]:
+        return self._control_command("abort_bash")
+
+    def abort_retry(self) -> dict[str, Any]:
+        return self._control_command("abort_retry")
+
     def send(self, command: dict[str, Any]) -> None:
         process = self._require_process()
         process.stdin.write(json.dumps(command, ensure_ascii=False) + "\n")
@@ -58,6 +67,11 @@ class PiRpcClient:
         if self._process is not None:
             self._process.terminate()
             self._process = None
+
+    def _control_command(self, command_type: str) -> dict[str, Any]:
+        command: dict[str, Any] = {"id": self._request_id(), "type": command_type}
+        self.send(command)
+        return self.read_response(command["id"])
 
     def _request_id(self) -> str:
         request_id = f"req-{self._next_id}"

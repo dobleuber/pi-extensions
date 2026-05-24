@@ -8,6 +8,7 @@ import unicodedata
 class DialogueDecision(StrEnum):
     CONTINUE = "continue"
     GOODBYE = "goodbye"
+    STOP = "stop"
 
 
 class DialogueControl:
@@ -15,6 +16,8 @@ class DialogueControl:
         normalized = _normalize(text)
         if re.search(r"\bgracias\b.*\broger\b", normalized):
             return DialogueDecision.GOODBYE
+        if re.search(r"\b(para|cancela|detente|stop)\b.*\broger\b", normalized):
+            return DialogueDecision.STOP
         return DialogueDecision.CONTINUE
 
 

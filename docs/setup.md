@@ -297,3 +297,26 @@ Each dispatched pi-agent task creates a structured JSONL task log under:
 ```
 
 Typed task CLI output includes a `log: ...` line when a persisted log is available. Logs contain task start/completion events, assistant text deltas, tool execution start/update/end events, prompt rejection/failure details, session name, and selected model mode (`online` or `offline-fallback`). The default retention keeps the most recent 50 JSONL files and prunes older files. Roger keeps spoken output concise; detailed progress remains in the textual log.
+
+## Cancellation
+
+Roger recognizes stop phrases such as:
+
+```text
+para Roger
+cancela Roger
+detente Roger
+stop Roger
+```
+
+When a pi-agent task is active in the same Roger process, Roger maps the stop intent to pi RPC abort support. The default command is `abort`; lower-level commands `abort_bash` and `abort_retry` are also available for active bash/tool execution or retry waits when pi supports them.
+
+Typed control command:
+
+```bash
+uv run roger cancel --session system
+uv run roger cancel --session current-project --command abort_bash
+uv run roger cancel --session system --command abort_retry
+```
+
+Cancellation reports command acceptance separately from final task end state. If there is no active task, multiple active tasks without a selected session, or pi does not expose the requested abort command, Roger reports that limitation instead of pretending the task stopped.

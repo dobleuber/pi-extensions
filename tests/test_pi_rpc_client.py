@@ -77,6 +77,21 @@ class PiRpcClientTests(unittest.TestCase):
             os.close(write_fd)
             process.stdout.close()
 
+    def test_abort_commands_send_rpc_request_and_parse_response(self):
+        for method in ["abort", "abort_bash", "abort_retry"]:
+            with self.subTest(method=method):
+                process = FakeProcess([
+                    json.dumps({"type": "response", "id": "req-1", "command": method, "success": True}) + "\n"
+                ])
+                client = PiRpcClient(process_factory=lambda _: process)
+                client.start(["pi", "--mode", "rpc"])
+
+                response = getattr(client, method)()
+
+                sent = json.loads(process.stdin.getvalue().strip())
+                self.assertEqual(sent["type"], method)
+                self.assertTrue(response["success"])
+
 
 if __name__ == "__main__":
     unittest.main()

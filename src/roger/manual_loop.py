@@ -13,6 +13,7 @@ from roger.tts_speaker import speak_best_effort
 
 class PiRunner(Protocol):
     def run_task(self, session_name: str, instruction: str) -> str: ...
+    def cancel_active(self, session_name: str | None = None, command: str = "abort"): ...
 
 
 class TtsSpeaker(Protocol):

@@ -123,6 +123,12 @@ def build_parser() -> argparse.ArgumentParser:
     task.add_argument("--console-feedback", action="store_true", help="Print phase feedback in the terminal")
     task.add_argument("--desktop-notifications", action="store_true", help="Also send notify-send desktop notifications")
 
+    cancel = subcommands.add_parser("cancel", help="Attempt to cancel an active Roger/pi-agent task")
+    cancel.add_argument("--session", choices=("system", "current-project"), default=None, help="Target active Roger session")
+    cancel.add_argument("--command", dest="abort_command", choices=("abort", "abort_bash", "abort_retry"), default="abort", help="pi RPC abort command to send")
+    cancel.add_argument("--config", type=Path, default=None, help="Path to roger TOML config")
+    cancel.add_argument("--project-dir", type=Path, default=Path.cwd(), help="Current project directory")
+
     overlay_demo = subcommands.add_parser("overlay-demo", help="Show the floating Roger overlay with sample content")
     overlay_demo.add_argument("--config", type=Path, default=None, help="Path to roger TOML config")
     overlay_demo.add_argument("--project-dir", type=Path, default=Path.cwd(), help="Current project directory")
@@ -198,6 +204,12 @@ def run(argv: Sequence[str] | None = None, dependencies: RuntimeDependencies | N
         result = _run_typed_task(args, config, registry, dependencies)
         exit_code = 1 if result["status"] == "failed" else 0
         return exit_code, _format_task_result(result)
+    if args.command == "cancel":
+        registry = _registry_from_config(config)
+        runner = dependencies.create_pi_runner(config, registry, offline=False)
+        result = runner.cancel_active(args.session, command=args.abort_command)
+        exit_code = 0 if result.accepted else 1
+        return exit_code, _format_cancel_result(result)
     if args.command == "overlay-demo":
         feedback = dependencies.create_overlay_feedback(config)
         feedback.wake_detected("hola roger", 1.0)
@@ -422,6 +434,21 @@ def _format_task_result(result: dict[str, str | bool]) -> str:
         lines.append(str(result["response"]))
     if result.get("log"):
         lines.append(f"log: {result['log']}")
+    return "\n".join(lines) + "\n"
+
+
+def _format_cancel_result(result) -> str:
+    lines = [
+        "Roger cancel result",
+        f"status: {result.status}",
+        f"accepted: {'yes' if result.accepted else 'no'}",
+    ]
+    if result.session_name:
+        lines.append(f"session: {result.session_name}")
+    if result.command:
+        lines.append(f"command: {result.command}")
+    if result.message:
+        lines.append(f"message: {result.message}")
     return "\n".join(lines) + "\n"
 
 

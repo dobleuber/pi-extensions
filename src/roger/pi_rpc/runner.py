@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
+from typing import Any, Callable
 from roger.pi_rpc.availability import (
     ModelAvailabilityMode,
     ModelAvailabilityPolicy,
@@ -18,6 +19,23 @@ _CHAT_TEMPLATE_TOKENS = (
     "<end_of_turn>",
     "<start_of_turn>",
 )
+
+
+@dataclass(frozen=True)
+class CancellationResult:
+    status: str
+    accepted: bool
+    message: str
+    session_name: str | None = None
+    command: str = "abort"
+
+
+@dataclass
+class ActiveTask:
+    session_name: str
+    instruction: str
+    client: Any
+    log: TaskLog | None = None
 
 
 def clean_model_response_text(text: str) -> str:
@@ -49,6 +67,7 @@ class PiAgentRunner:
         self.event_observer = event_observer
         self.task_log_store = task_log_store
         self.last_task_log: TaskLog | None = None
+        self.active_tasks: dict[str, ActiveTask] = {}
 
     def run_task(self, session_name: str, instruction: str) -> str:
         decision = self.availability_policy.decide()
@@ -82,6 +101,7 @@ class PiAgentRunner:
                 log.reject(message)
                 self._persist_log(log)
                 raise RuntimeError(message)
+            self.track_active_task(session_name, instruction, client, log=log)
             for event in client.stream_until_agent_end():
                 log.record_event(event)
                 if self.event_observer is not None:
@@ -101,7 +121,60 @@ class PiAgentRunner:
                 self._persist_log(log)
             raise
         finally:
+            self.clear_active_task(session_name)
             client.stop()
+
+    def track_active_task(self, session_name: str, instruction: str, client: Any, log: TaskLog | None = None) -> None:
+        self.active_tasks[session_name] = ActiveTask(session_name=session_name, instruction=instruction, client=client, log=log)
+
+    def clear_active_task(self, session_name: str) -> None:
+        self.active_tasks.pop(session_name, None)
+
+    def cancel_active(self, session_name: str | None = None, command: str = "abort") -> CancellationResult:
+        task = self._select_active_task(session_name)
+        if isinstance(task, CancellationResult):
+            return task
+        abort_method = getattr(task.client, command, None)
+        if abort_method is None:
+            return CancellationResult(
+                status="abort_unavailable",
+                accepted=False,
+                message=f"pi RPC command unavailable: {command}",
+                session_name=task.session_name,
+                command=command,
+            )
+        response = abort_method()
+        if response.get("success"):
+            if task.log is not None:
+                task.log.status_context = "cancellation requested"
+                task.log.record_event({"type": "abort", "message": command})
+            return CancellationResult(
+                status="cancel_requested",
+                accepted=True,
+                message="Cancellation accepted",
+                session_name=task.session_name,
+                command=command,
+            )
+        message = response.get("error", "Cancellation rejected")
+        return CancellationResult(
+            status="abort_rejected",
+            accepted=False,
+            message=message,
+            session_name=task.session_name,
+            command=command,
+        )
+
+    def _select_active_task(self, session_name: str | None) -> ActiveTask | CancellationResult:
+        if session_name is not None:
+            task = self.active_tasks.get(session_name)
+            if task is None:
+                return CancellationResult("no_active_task", False, "No active task for session", session_name=session_name)
+            return task
+        if not self.active_tasks:
+            return CancellationResult("no_active_task", False, "No active task")
+        if len(self.active_tasks) > 1:
+            return CancellationResult("ambiguous_active_task", False, "Multiple active tasks; specify a session")
+        return next(iter(self.active_tasks.values()))
 
     def _preflight_error(self, offline: bool) -> str | None:
         if not offline:
