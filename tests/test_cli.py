@@ -42,6 +42,14 @@ class RogerCliTests(unittest.TestCase):
         self.assertIn("offline model base URL: http://127.0.0.1:11434/v1", output)
         self.assertIn("offline timeout seconds: 45.0", output)
         self.assertIn("sessions: current-project, system", output)
+        self.assertIn("routing config: valid", output)
+
+    def test_route_command_dry_runs_without_dispatching(self):
+        exit_code, output = run(["route", "corre los tests", "--project-dir", "/tmp/project"])
+
+        self.assertEqual(exit_code, 0)
+        self.assertIn("session: current-project", output)
+        self.assertIn("matched rule: keyword:tests", output)
 
     def test_spike_command_can_dry_run_each_spike(self):
         expected_candidates = {

@@ -31,12 +31,12 @@
 
 ## 5. Extensible Context Routing
 
-- [ ] 5.1 Move routing domain metadata, keyword rules, ambiguity rules, and destructive safety rules into registry/config data structures.
-- [ ] 5.2 Add route decision explanations including matched domain, rule, confidence/safety reason, and clarification text.
-- [ ] 5.3 Add support for named project and non-project domains without modifying the voice pipeline.
-- [ ] 5.4 Add a route dry-run/diagnostic path for tests and manual inspection.
-- [ ] 5.5 Add health/startup validation for unknown sessions, malformed route rules, and invalid domain policies.
-- [ ] 5.6 Add tests for configurable system/current-project parity, named project routing, communications/media-style domains, destructive ambiguity, fresh-session policy, and route explanations.
+- [x] 5.1 Move routing domain metadata, keyword rules, ambiguity rules, and destructive safety rules into registry/config data structures.
+- [x] 5.2 Add route decision explanations including matched domain, rule, confidence/safety reason, and clarification text.
+- [x] 5.3 Add support for named project and non-project domains without modifying the voice pipeline.
+- [x] 5.4 Add a route dry-run/diagnostic path for tests and manual inspection.
+- [x] 5.5 Add health/startup validation for unknown sessions, malformed route rules, and invalid domain policies.
+- [x] 5.6 Add tests for configurable system/current-project parity, named project routing, communications/media-style domains, destructive ambiguity, fresh-session policy, and route explanations.
 
 ## 6. Documentation and Verification
 

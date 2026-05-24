@@ -320,3 +320,23 @@ uv run roger cancel --session system --command abort_retry
 ```
 
 Cancellation reports command acceptance separately from final task end state. If there is no active task, multiple active tasks without a selected session, or pi does not expose the requested abort command, Roger reports that limitation instead of pretending the task stopped.
+
+## Routing diagnostics and custom domains
+
+Roger routing is registry-driven. Each session can include routing metadata in `roger.toml`:
+
+```toml
+[sessions.notes]
+cwd = "/home/user/Notes"
+description = "Personal notes"
+routing_keywords = ["nota", "notas"]
+reuse_session = true
+```
+
+Dry-run routing without dispatching to pi-agent:
+
+```bash
+uv run roger route "abre mis notas"
+```
+
+The output includes selected session, matched rule, confidence, and reason. `roger health` reports routing config validation errors such as malformed keyword rules.

@@ -88,6 +88,27 @@ class RogerConfigTests(unittest.TestCase):
         self.assertEqual(config.sessions["system"].cwd, Path("/tmp"))
         self.assertEqual(config.sessions["current-project"].cwd, Path("/workspace/app"))
 
+    def test_load_config_supports_session_routing_metadata(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config_path = Path(tmp) / "roger.toml"
+            config_path.write_text(
+                textwrap.dedent(
+                    """
+                    [sessions.notes]
+                    cwd = "/tmp/notes"
+                    description = "Personal notes"
+                    routing_keywords = ["nota", "notas"]
+                    reuse_session = false
+                    """
+                ),
+                encoding="utf-8",
+            )
+
+            config = load_config(config_path, project_dir=Path("/workspace/app"))
+
+        self.assertEqual(config.sessions["notes"].routing_keywords, ["nota", "notas"])
+        self.assertFalse(config.sessions["notes"].reuse_session)
+
 
 if __name__ == "__main__":
     unittest.main()

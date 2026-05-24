@@ -64,6 +64,11 @@ def build_parser() -> argparse.ArgumentParser:
     health.add_argument("--config", type=Path, default=None, help="Path to roger TOML config")
     health.add_argument("--project-dir", type=Path, default=Path.cwd(), help="Current project directory")
 
+    route = subcommands.add_parser("route", help="Dry-run Roger context routing for an instruction")
+    route.add_argument("instruction", help="Instruction to classify without dispatching")
+    route.add_argument("--config", type=Path, default=None, help="Path to roger TOML config")
+    route.add_argument("--project-dir", type=Path, default=Path.cwd(), help="Current project directory")
+
     spike = subcommands.add_parser("spike", help="Run or dry-run an implementation spike")
     spike.add_argument("spike", choices=SPIKES)
     spike.add_argument("--dry-run", action="store_true", help="Print spike plan without executing heavy dependencies")
@@ -163,6 +168,9 @@ def run(argv: Sequence[str] | None = None, dependencies: RuntimeDependencies | N
 
     if args.command == "health":
         return 0, _format_health(config)
+    if args.command == "route":
+        registry = _registry_from_config(config)
+        return 0, _format_route_decision(Router(registry).route(args.instruction))
     if args.command == "spike":
         if args.spike == "wake" and args.write_configs:
             paths = write_training_configs(config.speech.wake.target_phrase, args.output_dir)
@@ -250,6 +258,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 def _format_health(config) -> str:
     sessions = ", ".join(sorted(config.sessions))
+    routing_errors = _registry_from_config(config).validate()
+    routing_status = "valid" if not routing_errors else "; ".join(routing_errors)
     lines = [
         "Roger health",
         f"wake: {config.speech.wake.backend}",
@@ -274,6 +284,7 @@ def _format_health(config) -> str:
         f"offline model base URL: {config.models.offline.base_url or '(not configured)'}",
         f"offline timeout seconds: {config.models.offline.timeout_seconds or '(disabled)'}",
         f"sessions: {sessions}",
+        f"routing config: {routing_status}",
     ]
     return "\n".join(lines) + "\n"
 
@@ -452,18 +463,40 @@ def _format_cancel_result(result) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _format_route_decision(decision) -> str:
+    lines = ["Roger route result"]
+    if decision.needs_clarification:
+        lines.append("status: needs_clarification")
+        lines.append(f"question: {decision.question}")
+    else:
+        lines.append("status: routed")
+        lines.append(f"session: {decision.session_name}")
+    lines.append(f"matched rule: {decision.matched_rule}")
+    lines.append(f"confidence: {decision.confidence}")
+    lines.append(f"reason: {decision.reason}")
+    return "\n".join(lines) + "\n"
+
+
 def _task_log_path(runner) -> str:
     log = getattr(runner, "last_task_log", None)
     return str(getattr(log, "path", "") or "") if log is not None else ""
 
 
 def _registry_from_config(config: RogerConfig) -> SessionRegistry:
-    return SessionRegistry(
-        {
-            name: SessionEntry(name=name, cwd=session.cwd, description=session.description)
-            for name, session in config.sessions.items()
-        }
-    )
+    defaults = {entry.name: entry for entry in SessionRegistry.default().entries()}
+    entries = {}
+    for name, session in config.sessions.items():
+        default_entry = defaults.get(name)
+        entries[name] = SessionEntry(
+            name=name,
+            cwd=session.cwd,
+            description=session.description,
+            routing_keywords=session.routing_keywords or (default_entry.routing_keywords if default_entry else []),
+            ambiguity_keywords=session.ambiguity_keywords or (default_entry.ambiguity_keywords if default_entry else []),
+            destructive_keywords=session.destructive_keywords or (default_entry.destructive_keywords if default_entry else []),
+            reuse_session=session.reuse_session,
+        )
+    return SessionRegistry(entries)
 
 
 def _create_pi_runner(config: RogerConfig, registry: SessionRegistry, offline: bool = False) -> PiAgentRunner:

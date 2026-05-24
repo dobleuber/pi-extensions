@@ -54,6 +54,65 @@ class RoutingTests(unittest.TestCase):
         self.assertTrue(decision.needs_clarification)
         self.assertIsNone(decision.session_name)
         self.assertIn("contexto", decision.question.lower())
+        self.assertIn("destructive", decision.reason)
+
+    def test_router_explains_keyword_rule_match(self):
+        router = Router(SessionRegistry.default(project_dir=Path("/tmp/project")))
+
+        decision = router.route("corre los tests")
+
+        self.assertEqual(decision.session_name, "current-project")
+        self.assertEqual(decision.matched_rule, "keyword:tests")
+        self.assertIn("current-project", decision.reason)
+
+    def test_registry_can_add_named_project_domain_with_rules(self):
+        registry = SessionRegistry.default(project_dir=Path("/tmp/project")).with_entry(
+            "notes",
+            cwd=Path("/tmp/notes"),
+            description="Personal notes",
+            routing_keywords=["nota", "notas"],
+        )
+        router = Router(registry)
+
+        decision = router.route("abre mis notas")
+
+        self.assertEqual(decision.session_name, "notes")
+        self.assertEqual(registry.get("notes").cwd, Path("/tmp/notes"))
+        self.assertEqual(decision.matched_rule, "keyword:notas")
+
+    def test_registry_can_add_non_project_domain_without_voice_pipeline_changes(self):
+        registry = SessionRegistry.default(project_dir=Path("/tmp/project")).with_entry(
+            "media",
+            cwd=Path.home(),
+            description="Media controls",
+            routing_keywords=["musica", "volumen"],
+        )
+
+        decision = Router(registry).route("sube el volumen")
+
+        self.assertEqual(decision.session_name, "media")
+
+    def test_safe_ambiguous_default_records_low_confidence(self):
+        router = Router(SessionRegistry.default(project_dir=Path("/tmp/project")))
+
+        decision = router.route("revisa esto")
+
+        self.assertTrue(decision.needs_clarification)
+        self.assertEqual(decision.confidence, "low")
+        self.assertIn("ambiguous", decision.reason)
+
+    def test_registry_validation_reports_malformed_route_rules(self):
+        registry = SessionRegistry({
+            "bad": SessionRegistry.default(Path("/tmp/project")).get("system").with_updates(
+                name="bad",
+                routing_keywords="not-a-list",
+            )
+        })
+
+        errors = registry.validate()
+
+        self.assertTrue(errors)
+        self.assertIn("bad", errors[0])
 
 
 if __name__ == "__main__":

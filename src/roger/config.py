@@ -82,6 +82,10 @@ class ModelsConfig:
 class SessionConfig:
     cwd: Path
     description: str = ""
+    routing_keywords: list[str] = field(default_factory=list)
+    ambiguity_keywords: list[str] = field(default_factory=list)
+    destructive_keywords: list[str] = field(default_factory=list)
+    reuse_session: bool = True
 
 
 @dataclass(frozen=True)
