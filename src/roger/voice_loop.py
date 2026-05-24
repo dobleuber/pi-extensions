@@ -8,6 +8,7 @@ from roger.dialogue import DialogueControl, DialogueDecision
 from roger.feedback import Feedback
 from roger.manual_loop import ManualLoop, PiRunner
 from roger.routing.registry import SessionRegistry
+from roger.tts_speaker import speak_best_effort
 
 
 class VoiceLoopState(StrEnum):
@@ -85,7 +86,7 @@ class VoiceLoop:
             )
         if self.dialogue_control.decide(transcription.text) == DialogueDecision.GOODBYE:
             message = "Hasta luego."
-            self.tts.speak(message)
+            speak_best_effort(self.tts, message)
             if self.feedback is not None:
                 self.feedback.completed("goodbye", message)
             return VoiceLoopResult(

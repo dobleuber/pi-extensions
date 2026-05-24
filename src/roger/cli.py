@@ -23,12 +23,13 @@ from roger.feedback import CompositeFeedback, ConsoleFeedback
 from roger.feedback_system import SystemFeedback
 from roger.installer import AutostartInstaller
 from roger.overlay import OverlayFeedback
+from roger.pi_rpc.availability import ModelAvailabilityPolicy, make_http_online_probe
 from roger.pi_rpc.runner import PiAgentRunner
 from roger.pi_rpc.sessions import PiSessionManager
 from roger.routing.registry import SessionEntry, SessionRegistry
 from roger.routing.router import Router
 from roger.summarization import summarize_for_speech
-from roger.tts_speaker import NoopSpeaker, SynthesizingSpeaker
+from roger.tts_speaker import NoopSpeaker, SafeSpeaker, SynthesizingSpeaker, speak_best_effort
 from roger.voice_loop import VoiceLoop
 
 
@@ -208,7 +209,7 @@ def run(argv: Sequence[str] | None = None, dependencies: RuntimeDependencies | N
         return 0, "overlay demo sent\n"
     if args.command == "say":
         speaker = dependencies.create_tts_speaker(config, no_tts=False)
-        speaker.speak(args.text)
+        speak_best_effort(speaker, args.text)
         return 0, "Roger say result\nspoken: yes\n"
     if args.command == "install-autostart":
         result = AutostartInstaller(home=args.home, project_dir=args.project_dir).install()
@@ -251,6 +252,10 @@ def _format_health(config) -> str:
         f"tts local files only: {config.speech.tts.local_files_only}",
         f"tts device: {config.speech.tts.device or '(backend default)'}",
         f"online model provider: {config.models.online.provider}",
+        f"automatic fallback: {config.models.automatic_fallback}",
+        f"fallback enabled: {config.models.fallback_enabled}",
+        f"online probe URL: {config.models.online_probe_url or '(not configured)'}",
+        f"provider probe timeout seconds: {config.models.probe_timeout_seconds}",
         f"offline model provider: {config.models.offline.provider}",
         f"offline model: {config.models.offline.model or '(provider default)'}",
         f"offline model base URL: {config.models.offline.base_url or '(not configured)'}",
@@ -305,13 +310,16 @@ def _build_voice_loop(args, config: RogerConfig, dependencies: RuntimeDependenci
     if args.wake_debug and hasattr(wake, "score_callback"):
         wake.score_callback = _build_wake_score_callback(quiet=args.quiet, min_score=args.wake_debug_min_score)
     feedback = None if args.quiet else CompositeFeedback(_feedback_sinks(args, config, dependencies))
+    speaker = dependencies.create_tts_speaker(config, no_tts=args.no_tts)
+    if feedback is not None and hasattr(speaker, "warning_callback"):
+        speaker.warning_callback = lambda message: feedback.completed("tts_degraded", message)
     loop = dependencies.voice_loop_class(
         registry,
         wake,
         dependencies.create_vad_backend(config),
         dependencies.create_stt_backend(config),
         dependencies.create_pi_runner(config, registry, offline=args.offline),
-        dependencies.create_tts_speaker(config, no_tts=args.no_tts),
+        speaker,
         preview_action=args.preview_action,
         feedback=feedback,
     )
@@ -390,11 +398,11 @@ def _run_typed_task(args, config: RogerConfig, registry: SessionRegistry, depend
         message = str(error)
         feedback.completed("failed", message)
         if not args.no_tts:
-            speaker.speak(summarize_for_speech(message))
+            speak_best_effort(speaker, summarize_for_speech(message))
         return {"status": "failed", "session": session_name, "response": message, "dispatched": True}
     feedback.completed("complete", response)
     if not args.no_tts:
-        speaker.speak(summarize_for_speech(response))
+        speak_best_effort(speaker, summarize_for_speech(response))
     return {"status": "complete", "session": session_name, "response": response, "dispatched": True}
 
 
@@ -430,13 +438,25 @@ def _create_pi_runner(config: RogerConfig, registry: SessionRegistry, offline: b
         offline_base_url=config.models.offline.base_url,
         offline_timeout_seconds=config.models.offline.timeout_seconds,
     )
-    return PiAgentRunner(session_manager=session_manager, offline=offline)
+    online_probe = None
+    if config.models.online_probe_url:
+        online_probe = make_http_online_probe(
+            config.models.online_probe_url,
+            timeout_seconds=config.models.probe_timeout_seconds,
+        )
+    policy = ModelAvailabilityPolicy(
+        explicit_offline=offline,
+        automatic_fallback=config.models.automatic_fallback,
+        fallback_enabled=config.models.fallback_enabled,
+        online_probe=online_probe,
+    )
+    return PiAgentRunner(session_manager=session_manager, offline=offline, availability_policy=policy)
 
 
 def _create_tts_speaker(config: RogerConfig, no_tts: bool = False):
     if no_tts:
         return NoopSpeaker()
-    return SynthesizingSpeaker(create_tts_backend(config))
+    return SafeSpeaker(SynthesizingSpeaker(create_tts_backend(config)))
 
 
 def _create_overlay_feedback(config: RogerConfig):

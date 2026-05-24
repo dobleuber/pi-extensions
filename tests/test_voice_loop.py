@@ -45,11 +45,14 @@ class FakePiRunner:
 
 
 class FakeTts:
-    def __init__(self):
+    def __init__(self, fail=False):
         self.spoken = []
+        self.fail = fail
 
     def speak(self, text):
         self.spoken.append(text)
+        if self.fail:
+            raise RuntimeError("tts failed")
 
 
 class VoiceLoopTests(unittest.TestCase):
@@ -102,6 +105,22 @@ class VoiceLoopTests(unittest.TestCase):
         self.assertEqual(result.state, VoiceLoopState.LISTENING)
         self.assertFalse(result.dispatched)
         self.assertEqual(result.status, "cancelled")
+
+    def test_goodbye_keeps_result_when_tts_fails(self):
+        loop = VoiceLoop(
+            SessionRegistry.default(Path("/tmp/project")),
+            FakeWake(WakeDetection("hola roger", 0.99)),
+            FakeVad(),
+            FakeStt("gracias Roger"),
+            FakePiRunner(),
+            FakeTts(fail=True),
+        )
+
+        result = loop.run_once()
+
+        self.assertEqual(result.status, "goodbye")
+        self.assertFalse(result.dispatched)
+        self.assertEqual(result.message, "Hasta luego.")
 
 
 if __name__ == "__main__":

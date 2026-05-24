@@ -11,12 +11,49 @@ import numpy as np
 from roger.backends.interfaces import TtsBackend, SynthesizedSpeech
 
 
+@dataclass(frozen=True)
+class SpeakResult:
+    text: str
+    success: bool
+    skipped: bool = False
+    error: str = ""
+
+
 class NoopSpeaker:
     def __init__(self):
         self.spoken: list[str] = []
 
-    def speak(self, text: str) -> None:
+    def speak(self, text: str) -> SpeakResult:
         self.spoken.append(text)
+        return SpeakResult(text=text, success=True, skipped=True)
+
+
+@dataclass
+class SafeSpeaker:
+    speaker: object
+    warning_callback: Callable[[str], None] | None = None
+    repeat_warning_interval: int = 5
+    failures: int = 0
+    last_error: str = ""
+
+    def speak(self, text: str) -> SpeakResult:
+        try:
+            result = self.speaker.speak(text)
+        except Exception as error:
+            self.failures += 1
+            self.last_error = str(error)
+            self._maybe_warn(str(error))
+            return SpeakResult(text=text, success=False, error=str(error))
+        if isinstance(result, SpeakResult):
+            return result
+        return SpeakResult(text=text, success=True)
+
+    def _maybe_warn(self, error: str) -> None:
+        if self.warning_callback is None:
+            return
+        if self.failures != 1 and (self.failures - 1) % self.repeat_warning_interval != 0:
+            return
+        self.warning_callback(f"Speech output degraded: {error}")
 
 
 @dataclass
@@ -25,10 +62,11 @@ class SynthesizingSpeaker:
     audio_player: Callable[[SynthesizedSpeech], None] | None = None
     last_speech: SynthesizedSpeech | None = None
 
-    def speak(self, text: str) -> None:
+    def speak(self, text: str) -> SpeakResult:
         self.last_speech = self.backend.synthesize(text)
         player = self.audio_player or SystemAudioPlayer().play
         player(self.last_speech)
+        return SpeakResult(text=text, success=True)
 
 
 class SystemAudioPlayer:
@@ -70,6 +108,16 @@ class SystemAudioPlayer:
             import sounddevice as sd
         sd.play(audio, samplerate=sample_rate)
         sd.wait()
+
+
+def speak_best_effort(speaker: object, text: str) -> SpeakResult:
+    try:
+        result = speaker.speak(text)
+    except Exception as error:
+        return SpeakResult(text=text, success=False, error=str(error))
+    if isinstance(result, SpeakResult):
+        return result
+    return SpeakResult(text=text, success=True)
 
 
 def play_with_sounddevice(speech: SynthesizedSpeech) -> None:

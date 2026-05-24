@@ -1,6 +1,7 @@
 import unittest
 from pathlib import Path
 
+from roger.pi_rpc.availability import ModelAvailabilityDecision, ModelAvailabilityMode, ModelAvailabilityPolicy
 from roger.pi_rpc.runner import PiAgentRunner
 from roger.pi_rpc.sessions import PiSessionManager
 from roger.routing.registry import SessionRegistry
@@ -101,6 +102,66 @@ class PiAgentRunnerTests(unittest.TestCase):
 
         with self.assertRaisesRegex(RuntimeError, "no model"):
             runner.run_task("system", "actualiza el sistema")
+
+    def test_runner_uses_policy_offline_decision(self):
+        client = FakeClient()
+        registry = SessionRegistry.default(project_dir=Path("/tmp/project"))
+        manager = PiSessionManager(registry=registry, session_dir=Path("/tmp/sessions"))
+        policy = ModelAvailabilityPolicy(explicit_offline=True)
+        runner = PiAgentRunner(
+            session_manager=manager,
+            client_factory=lambda command, cwd: client,
+            availability_policy=policy,
+            preflight_check=lambda: None,
+        )
+
+        runner.run_task("system", "responde exactamente: ok")
+
+        self.assertIn("--offline", client.started)
+        self.assertIn("--provider", client.started)
+        self.assertIn("llama-cpp", client.started)
+
+    def test_runner_retries_online_provider_failure_once_with_fallback(self):
+        class RejectingClient(FakeClient):
+            def prompt(self, message):
+                return {"success": False, "error": "provider unavailable: network timeout"}
+
+        clients = [RejectingClient(), FakeClient(collected_text="ok")]
+        commands = []
+        registry = SessionRegistry.default(project_dir=Path("/tmp/project"))
+        manager = PiSessionManager(registry=registry, session_dir=Path("/tmp/sessions"))
+        runner = PiAgentRunner(
+            session_manager=manager,
+            client_factory=lambda command, cwd: commands.append(command) or clients.pop(0),
+            availability_policy=ModelAvailabilityPolicy(online_probe=lambda: True),
+            preflight_check=lambda: None,
+        )
+
+        result = runner.run_task("system", "responde exactamente: ok")
+
+        self.assertEqual(result, "ok")
+        self.assertNotIn("--offline", commands[0])
+        self.assertIn("--offline", commands[1])
+
+    def test_runner_does_not_retry_normal_task_failure_on_fallback(self):
+        class RejectingClient(FakeClient):
+            def prompt(self, message):
+                return {"success": False, "error": "tool command failed"}
+
+        calls = []
+        registry = SessionRegistry.default(project_dir=Path("/tmp/project"))
+        manager = PiSessionManager(registry=registry, session_dir=Path("/tmp/sessions"))
+        runner = PiAgentRunner(
+            session_manager=manager,
+            client_factory=lambda command, cwd: calls.append(command) or RejectingClient(),
+            availability_policy=ModelAvailabilityPolicy(online_probe=lambda: True),
+            preflight_check=lambda: None,
+        )
+
+        with self.assertRaisesRegex(RuntimeError, "tool command failed"):
+            runner.run_task("system", "corre tests")
+
+        self.assertEqual(len(calls), 1)
 
 
 if __name__ == "__main__":

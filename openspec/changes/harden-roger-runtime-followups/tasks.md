@@ -1,10 +1,10 @@
 ## 1. Model Availability and Offline Fallback
 
-- [ ] 1.1 Add a model availability policy abstraction that returns online, offline-fallback, or unavailable decisions.
-- [ ] 1.2 Add bounded connectivity/provider probes and config flags for automatic fallback, explicit offline, and fallback disabled modes.
-- [ ] 1.3 Update `PiSessionManager` command generation to include the llama.cpp provider/model profile and pi offline startup behavior when fallback is selected.
-- [ ] 1.4 Update `PiAgentRunner` to retry once on recognized online provider/network startup or prompt-acceptance failures.
-- [ ] 1.5 Add tests for online default, explicit offline, automatic fallback, unavailable llama.cpp server, and missing fallback model reporting.
+- [x] 1.1 Add a model availability policy abstraction that returns online, offline-fallback, or unavailable decisions.
+- [x] 1.2 Add bounded connectivity/provider probes and config flags for automatic fallback, explicit offline, and fallback disabled modes.
+- [x] 1.3 Update `PiSessionManager` command generation to include the llama.cpp provider/model profile and pi offline startup behavior when fallback is selected.
+- [x] 1.4 Update `PiAgentRunner` to retry once on recognized online provider/network startup or prompt-acceptance failures.
+- [x] 1.5 Add tests for online default, explicit offline, automatic fallback, unavailable llama.cpp server, and missing fallback model reporting.
 
 ## 2. Task Progress Logging
 
@@ -16,10 +16,10 @@
 
 ## 3. Resilient Local Speech Output
 
-- [ ] 3.1 Add a safe speaker boundary that reports TTS synthesis/playback success or failure without leaking backend exceptions to task callers.
-- [ ] 3.2 Update manual loop, voice loop, typed task CLI, and daemon flows so TTS failure keeps textual results visible and does not change task completion status.
-- [ ] 3.3 Add visible warning/rate-limiting for repeated TTS degradation in daemon mode.
-- [ ] 3.4 Add tests for completed-task TTS failure, failure-summary TTS failure, clarification TTS failure, playback failure, and no-TTS mode.
+- [x] 3.1 Add a safe speaker boundary that reports TTS synthesis/playback success or failure without leaking backend exceptions to task callers.
+- [x] 3.2 Update manual loop, voice loop, typed task CLI, and daemon flows so TTS failure keeps textual results visible and does not change task completion status.
+- [x] 3.3 Add visible warning/rate-limiting for repeated TTS degradation in daemon mode.
+- [x] 3.4 Add tests for completed-task TTS failure, failure-summary TTS failure, clarification TTS failure, playback failure, and no-TTS mode.
 
 ## 4. In-flight Task Cancellation
 

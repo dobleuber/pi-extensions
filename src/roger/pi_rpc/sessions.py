@@ -33,7 +33,7 @@ class PiSessionManager:
 def select_model_args(offline: bool, provider: str, model: str | None) -> list[str]:
     if not offline:
         return []
-    args = ["--provider", provider]
+    args = ["--offline", "--provider", provider]
     if model:
         args.extend(["--model", model])
     return args

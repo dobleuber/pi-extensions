@@ -33,6 +33,10 @@ class RogerConfigTests(unittest.TestCase):
         self.assertEqual(config.models.offline.model, "gemma4")
         self.assertEqual(config.models.offline.base_url, "http://127.0.0.1:11434/v1")
         self.assertEqual(config.models.offline.timeout_seconds, 45.0)
+        self.assertTrue(config.models.automatic_fallback)
+        self.assertTrue(config.models.fallback_enabled)
+        self.assertIsNone(config.models.online_probe_url)
+        self.assertEqual(config.models.probe_timeout_seconds, 2.0)
         self.assertIn("system", config.sessions)
         self.assertIn("current-project", config.sessions)
         self.assertEqual(config.sessions["current-project"].cwd, Path("/tmp/project"))
@@ -55,6 +59,12 @@ class RogerConfigTests(unittest.TestCase):
                     [speech.wake]
                     threshold = 0.82
 
+                    [models]
+                    automatic_fallback = false
+                    fallback_enabled = false
+                    online_probe_url = "https://example.test/health"
+                    probe_timeout_seconds = 0.75
+
                     [sessions.system]
                     cwd = "/tmp"
                     """
@@ -71,6 +81,10 @@ class RogerConfigTests(unittest.TestCase):
         self.assertEqual(config.speech.stt.compute_type, "int8")
         self.assertEqual(config.speech.wake.threshold, 0.82)
         self.assertEqual(config.speech.wake.target_phrase, "hola roger")
+        self.assertFalse(config.models.automatic_fallback)
+        self.assertFalse(config.models.fallback_enabled)
+        self.assertEqual(config.models.online_probe_url, "https://example.test/health")
+        self.assertEqual(config.models.probe_timeout_seconds, 0.75)
         self.assertEqual(config.sessions["system"].cwd, Path("/tmp"))
         self.assertEqual(config.sessions["current-project"].cwd, Path("/workspace/app"))
 

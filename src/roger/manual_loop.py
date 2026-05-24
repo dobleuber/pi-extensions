@@ -8,6 +8,7 @@ from roger.routing.router import Router
 from roger.summarization import summarize_for_speech
 from roger.ui.preview import PreviewAction, TranscriptionPreview
 from roger.feedback import Feedback
+from roger.tts_speaker import speak_best_effort
 
 
 class PiRunner(Protocol):
@@ -38,12 +39,12 @@ class ManualLoop:
         action = PreviewAction(preview_action)
         decision = self.preview.review(transcription, action=action)
         if not decision.accepted:
-            self.tts.speak("Preview cancelled")
+            speak_best_effort(self.tts, "Preview cancelled")
             return ManualLoopResult(status="cancelled", dispatched=False, session_name=None, message="Preview cancelled")
 
         route = self.router.route(decision.text)
         if route.needs_clarification:
-            self.tts.speak(route.question)
+            speak_best_effort(self.tts, route.question)
             return ManualLoopResult(status="needs_clarification", dispatched=False, session_name=None, message=route.question)
 
         if self.feedback is not None:
@@ -52,9 +53,9 @@ class ManualLoop:
         try:
             response = self.pi_runner.run_task(route.session_name, decision.text)
         except Exception as error:  # pi-agent failures should surface without crashing the loop
-            self.tts.speak(str(error))
+            speak_best_effort(self.tts, str(error))
             return ManualLoopResult(status="failed", dispatched=False, session_name=route.session_name, message=str(error))
 
         summary = summarize_for_speech(response)
-        self.tts.speak(summary)
+        speak_best_effort(self.tts, summary)
         return ManualLoopResult(status="complete", dispatched=True, session_name=route.session_name, message=summary)

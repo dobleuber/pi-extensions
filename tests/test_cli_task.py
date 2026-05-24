@@ -100,6 +100,22 @@ class CliTaskTests(unittest.TestCase):
 
         self.assertEqual(speaker.spoken, ["Respuesta real de pi"])
 
+    def test_task_command_no_tts_mode_skips_synthesis_but_keeps_text_result(self):
+        class UnexpectedSpeaker(FakeSpeaker):
+            def speak(self, text):
+                raise AssertionError("TTS should be skipped")
+
+        exit_code, output = cli.run(
+            ["task", "--session", "current-project", "corre pwd", "--no-overlay", "--no-tts"],
+            dependencies=cli.RuntimeDependencies(
+                create_pi_runner=lambda config, registry, offline=False: FakeRunner(),
+                create_tts_speaker=lambda config, no_tts=False: UnexpectedSpeaker(),
+            ),
+        )
+
+        self.assertEqual(exit_code, 0)
+        self.assertIn("Respuesta real de pi", output)
+
     def test_task_command_reports_runner_failure_without_crashing(self):
         class FailingRunner:
             def run_task(self, session_name, instruction):
@@ -122,6 +138,23 @@ class CliTaskTests(unittest.TestCase):
         self.assertIn("llama.cpp server unavailable", output)
         self.assertEqual(overlay.calls[-1], ("completed", "failed", "llama.cpp server unavailable"))
         self.assertEqual(speaker.spoken, ["llama.cpp server unavailable"])
+
+    def test_task_command_keeps_complete_status_when_tts_fails(self):
+        class FailingSpeaker:
+            def speak(self, text):
+                raise RuntimeError("audio device unavailable")
+
+        exit_code, output = cli.run(
+            ["task", "--session", "current-project", "corre pwd", "--no-overlay"],
+            dependencies=cli.RuntimeDependencies(
+                create_pi_runner=lambda config, registry, offline=False: FakeRunner(),
+                create_tts_speaker=lambda config, no_tts=False: FailingSpeaker(),
+            ),
+        )
+
+        self.assertEqual(exit_code, 0)
+        self.assertIn("status: complete", output)
+        self.assertIn("Respuesta real de pi", output)
 
 
 if __name__ == "__main__":

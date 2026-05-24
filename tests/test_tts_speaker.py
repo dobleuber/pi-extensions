@@ -3,7 +3,7 @@ import unittest
 from roger.backends.interfaces import SynthesizedSpeech
 import numpy as np
 
-from roger.tts_speaker import NoopSpeaker, SynthesizingSpeaker, SystemAudioPlayer
+from roger.tts_speaker import NoopSpeaker, SafeSpeaker, SynthesizingSpeaker, SystemAudioPlayer
 
 
 class FakeTtsBackend:
@@ -44,6 +44,58 @@ class TtsSpeakerTests(unittest.TestCase):
         speaker.speak("Hola")
 
         self.assertEqual(played, [(b"audio", 24_000)])
+
+    def test_safe_speaker_reports_synthesis_failure_without_raising(self):
+        class FailingSpeaker:
+            def speak(self, text):
+                raise RuntimeError("kokoro unavailable")
+
+        speaker = SafeSpeaker(FailingSpeaker())
+
+        result = speaker.speak("Hola")
+
+        self.assertFalse(result.success)
+        self.assertIn("kokoro unavailable", result.error)
+        self.assertEqual(speaker.failures, 1)
+
+    def test_safe_speaker_reports_playback_failure_without_raising(self):
+        backend = FakeTtsBackend()
+        speaker = SafeSpeaker(
+            SynthesizingSpeaker(
+                backend,
+                audio_player=lambda speech: (_ for _ in ()).throw(RuntimeError("pipewire unavailable")),
+            )
+        )
+
+        result = speaker.speak("Hola")
+
+        self.assertFalse(result.success)
+        self.assertIn("pipewire unavailable", result.error)
+        self.assertEqual(backend.texts, ["Hola"])
+
+    def test_safe_speaker_reports_success(self):
+        backend = FakeTtsBackend()
+        speaker = SafeSpeaker(SynthesizingSpeaker(backend, audio_player=lambda speech: None))
+
+        result = speaker.speak("Hola")
+
+        self.assertTrue(result.success)
+        self.assertEqual(result.text, "Hola")
+
+    def test_safe_speaker_rate_limits_failure_warnings(self):
+        class FailingSpeaker:
+            def speak(self, text):
+                raise RuntimeError("kokoro unavailable")
+
+        warnings = []
+        speaker = SafeSpeaker(FailingSpeaker(), warning_callback=warnings.append, repeat_warning_interval=3)
+
+        for _ in range(5):
+            speaker.speak("Hola")
+
+        self.assertEqual(len(warnings), 2)
+        self.assertIn("Speech output degraded", warnings[0])
+        self.assertIn("kokoro unavailable", warnings[0])
 
     def test_system_audio_player_prefers_pipewire_pw_play_when_available(self):
         calls = []

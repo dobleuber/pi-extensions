@@ -18,11 +18,14 @@ class FakePiRunner:
 
 
 class FakeTts:
-    def __init__(self):
+    def __init__(self, fail=False):
         self.spoken = []
+        self.fail = fail
 
     def speak(self, text):
         self.spoken.append(text)
+        if self.fail:
+            raise RuntimeError("tts failed")
 
 
 class ManualLoopTests(unittest.TestCase):
@@ -80,6 +83,28 @@ class ManualLoopTests(unittest.TestCase):
         self.assertEqual(result.status, "failed")
         self.assertIn("pi unavailable", result.message)
         self.assertEqual(tts.spoken, ["pi unavailable"])
+
+    def test_completed_task_keeps_complete_status_when_tts_fails(self):
+        tts = FakeTts(fail=True)
+        loop = ManualLoop(SessionRegistry.default(project_dir=Path("/tmp/project")), pi_runner=FakePiRunner(), tts=tts)
+
+        result = loop.run_transcription("corre los tests")
+
+        self.assertEqual(result.status, "complete")
+        self.assertTrue(result.dispatched)
+        self.assertEqual(result.message, "Tarea completada con muchos detalles")
+
+    def test_clarification_keeps_visible_message_when_tts_fails(self):
+        tts = FakeTts(fail=True)
+        pi = FakePiRunner()
+        loop = ManualLoop(SessionRegistry.default(project_dir=Path("/tmp/project")), pi_runner=pi, tts=tts)
+
+        result = loop.run_transcription("haz eso")
+
+        self.assertEqual(result.status, "needs_clarification")
+        self.assertFalse(result.dispatched)
+        self.assertEqual(pi.calls, [])
+        self.assertIn("system o current-project", result.message)
 
 
 if __name__ == "__main__":

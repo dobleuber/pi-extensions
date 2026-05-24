@@ -72,6 +72,10 @@ class ModelsConfig:
             timeout_seconds=45.0,
         )
     )
+    automatic_fallback: bool = True
+    fallback_enabled: bool = True
+    online_probe_url: str | None = None
+    probe_timeout_seconds: float = 2.0
 
 
 @dataclass(frozen=True)
@@ -120,6 +124,9 @@ def _merge_config(config: RogerConfig, data: dict[str, Any]) -> RogerConfig:
 
     models = config.models
     models_data = data.get("models", {})
+    model_top_level = {key: value for key, value in models_data.items() if key not in {"online", "offline"}}
+    if model_top_level:
+        models = _merge_dataclass(models, model_top_level)
     if "online" in models_data:
         models = replace(models, online=_merge_dataclass(models.online, models_data["online"]))
     if "offline" in models_data:
