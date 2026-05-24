@@ -39,7 +39,7 @@ Roger SHALL ask for clarification when it cannot confidently choose a context or
 - **THEN** Roger SHALL ask a clarifying question or choose the safest non-destructive interpretation without executing destructive work
 
 ### Requirement: Online and offline model selection
-Roger SHALL use pi's configured default model when online and SHALL use an Ollama-backed pi model when offline.
+Roger SHALL use pi's configured default model when online and SHALL use a llama.cpp-backed pi model when offline.
 
 #### Scenario: Online mode available
 - **WHEN** Roger determines that internet and the configured pi default provider are available
@@ -47,10 +47,10 @@ Roger SHALL use pi's configured default model when online and SHALL use an Ollam
 
 #### Scenario: Offline mode detected
 - **WHEN** Roger determines that internet or pi's configured online provider is unavailable
-- **THEN** Roger SHALL dispatch the task to pi-agent using the configured Ollama fallback model
+- **THEN** Roger SHALL dispatch the task to pi-agent using the configured llama.cpp fallback model
 
-#### Scenario: Ollama fallback unavailable
-- **WHEN** Roger is offline and the Ollama fallback model or server is unavailable
+#### Scenario: llama.cpp fallback unavailable
+- **WHEN** Roger is offline and the llama.cpp fallback model or server is unavailable
 - **THEN** Roger SHALL report that offline execution is unavailable and SHALL NOT silently drop the task
 
 ### Requirement: Context registry
