@@ -58,6 +58,7 @@ class PiAgentRunner:
         availability_policy: ModelAvailabilityPolicy | None = None,
         event_observer: Callable[[dict], None] | None = None,
         task_log_store: TaskLogStore | None = None,
+        request_speech_metadata: bool = False,
     ):
         self.session_manager = session_manager
         self.client_factory = client_factory or self._default_client_factory
@@ -68,6 +69,7 @@ class PiAgentRunner:
         self.task_log_store = task_log_store
         self.last_task_log: TaskLog | None = None
         self.active_tasks: dict[str, ActiveTask] = {}
+        self.request_speech_metadata = request_speech_metadata
 
     def run_task(self, session_name: str, instruction: str) -> str:
         decision = self.availability_policy.decide()
@@ -95,7 +97,10 @@ class PiAgentRunner:
         client = self.client_factory(command, cwd)
         try:
             client.start(command)
-            response = client.prompt(instruction)
+            if self.request_speech_metadata:
+                response = client.prompt(instruction, metadata={"source": "roger", "speech": {"enabled": True, "language": "es"}})
+            else:
+                response = client.prompt(instruction)
             if not response.get("success"):
                 message = response.get("error", "pi-agent rejected prompt")
                 log.reject(message)

@@ -1,6 +1,6 @@
 import unittest
 
-from roger.summarization import GemmaSpeechNaturalizer, prepare_speech_script, summarize_for_speech
+from roger.summarization import parse_speech_response, prepare_speech_script, summarize_for_speech
 from roger.ui.logs import TaskLog
 from roger.ui.preview import PreviewAction, TranscriptionPreview
 
@@ -63,94 +63,22 @@ class UiAndSummaryTests(unittest.TestCase):
         self.assertEqual(script.display_text, "Ejecuta FooBar")
         self.assertEqual(script.speech_text, "Ejecuta fu bar")
 
-    def test_gemma_naturalizer_uses_local_completion_response(self):
-        calls = []
+    def test_parse_structured_speech_response_keeps_display_and_speech_separate(self):
+        payload = '{"display_text":"It is 8:39.","speech_text":"Son las ocho treinta y nueve.","speech_language":"es","speech_source":"pi-router"}'
 
-        def complete(payload, timeout):
-            calls.append((payload, timeout))
-            return {"choices": [{"message": {"content": "Son las diez y treinta de la mañana."}}]}
+        script = parse_speech_response(payload)
 
-        naturalizer = GemmaSpeechNaturalizer(
-            base_url="http://127.0.0.1:11434/v1",
-            model="gemma4",
-            timeout_seconds=1.5,
-            complete=complete,
-        )
+        self.assertEqual(script.display_text, "It is 8:39.")
+        self.assertEqual(script.speech_text, "Son las ocho treinta y nueve.")
+        self.assertEqual(script.source, "pi-router")
+        self.assertEqual(script.metadata["speech_language"], "es")
 
-        script = naturalizer.naturalize("Son las **10:30 am**")
+    def test_parse_plain_text_response_uses_minimal_fallback(self):
+        script = parse_speech_response("Son las **10:30 am**")
 
         self.assertEqual(script.display_text, "Son las **10:30 am**")
-        self.assertEqual(script.speech_text, "Son las diez y treinta de la mañana.")
-        self.assertEqual(script.source, "gemma")
-        self.assertEqual(calls[0][0]["model"], "gemma4")
-        system_prompt = calls[0][0]["messages"][0]["content"]
-        self.assertIn("solo para TTS", system_prompt)
-        self.assertIn("responder en español", system_prompt)
-        self.assertIn("excepto anglicismos", system_prompt)
-        self.assertIn("Son las **10:30 am**", calls[0][0]["messages"][1]["content"])
-        self.assertEqual(calls[0][1], 1.5)
-
-    def test_gemma_naturalizer_falls_back_when_completion_fails(self):
-        def complete(payload, timeout):
-            raise TimeoutError("too slow")
-
-        naturalizer = GemmaSpeechNaturalizer(complete=complete, timeout_seconds=0.1)
-
-        script = naturalizer.naturalize("Abrí el README en GitHub")
-
-        self.assertEqual(script.source, "fallback")
-        self.assertIn("too slow", script.degradation_reason)
-        self.assertIn("ridmi", script.speech_text)
-        self.assertIn("guit jab", script.speech_text)
-
-    def test_gemma_naturalizer_rejects_invalid_output_and_falls_back(self):
-        naturalizer = GemmaSpeechNaturalizer(
-            complete=lambda payload, timeout: {"choices": [{"message": {"content": ""}}]},
-        )
-
-        script = naturalizer.naturalize("Usa Docker")
-
-        self.assertEqual(script.source, "fallback")
-        self.assertIn("invalid", script.degradation_reason)
-        self.assertIn("dóker", script.speech_text)
-
-    def test_gemma_naturalizer_rejects_chat_template_echo_and_falls_back(self):
-        naturalizer = GemmaSpeechNaturalizer(
-            complete=lambda payload, timeout: {
-                "choices": [{"message": {"content": "Son las **10:30 am**<|im_end|>\n<|im_start|>assistant"}}]
-            },
-        )
-
-        script = naturalizer.naturalize("Son las **10:30 am**")
-
-        self.assertEqual(script.source, "fallback")
-        self.assertIn("invalid", script.degradation_reason)
         self.assertEqual(script.speech_text, "Son las diez y treinta de la mañana")
-
-    def test_gemma_naturalizer_rejects_unchanged_english_without_sending_it_to_tts(self):
-        text = "Respond again: it's eight, thirty-nine and nine zero five."
-        naturalizer = GemmaSpeechNaturalizer(
-            complete=lambda payload, timeout: {"choices": [{"message": {"content": text}}]},
-        )
-
-        script = naturalizer.naturalize(text)
-
         self.assertEqual(script.source, "fallback")
-        self.assertIn("invalid", script.degradation_reason)
-        self.assertEqual(script.display_text, text)
-        self.assertNotEqual(script.speech_text, text)
-        self.assertEqual(script.speech_text, "No pude preparar una respuesta hablada en español.")
-
-    def test_gemma_naturalizer_rejects_partial_english_with_curly_apostrophe(self):
-        naturalizer = GemmaSpeechNaturalizer(
-            complete=lambda payload, timeout: {"choices": [{"message": {"content": "It’s 2026-05-24."}}]},
-        )
-
-        script = naturalizer.naturalize("It’s 2026-05-24 20:55:39 -05.")
-
-        self.assertEqual(script.source, "fallback")
-        self.assertIn("invalid", script.degradation_reason)
-        self.assertEqual(script.speech_text, "No pude preparar una respuesta hablada en español.")
 
 
 if __name__ == "__main__":

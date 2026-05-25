@@ -51,6 +51,22 @@ class PiRpcClientTests(unittest.TestCase):
         self.assertTrue(process.stdin.flushed)
         self.assertTrue(response["success"])
 
+    def test_prompt_can_send_roger_speech_metadata(self):
+        process = FakeProcess([
+            json.dumps({"type": "response", "id": "req-1", "command": "prompt", "success": True}) + "\n"
+        ])
+        client = PiRpcClient(process_factory=lambda _: process)
+        client.start(["pi", "--mode", "rpc"])
+
+        response = client.prompt(
+            "Hola",
+            metadata={"source": "roger", "speech": {"enabled": True, "language": "es"}},
+        )
+
+        sent = json.loads(process.stdin.getvalue().strip())
+        self.assertTrue(response["success"])
+        self.assertEqual(sent["metadata"], {"source": "roger", "speech": {"enabled": True, "language": "es"}})
+
     def test_stream_until_agent_end_collects_text_deltas(self):
         process = FakeProcess([
             json.dumps({"type": "message_update", "assistantMessageEvent": {"type": "text_delta", "delta": "Hecho"}}) + "\n",

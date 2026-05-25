@@ -28,7 +28,7 @@ from roger.pi_rpc.runner import PiAgentRunner
 from roger.pi_rpc.sessions import PiSessionManager
 from roger.routing.registry import SessionEntry, SessionRegistry
 from roger.routing.router import Router
-from roger.summarization import GemmaSpeechNaturalizer, prepare_speech_script
+from roger.summarization import parse_speech_response, prepare_speech_script
 from roger.tts_speaker import NoopSpeaker, SafeSpeaker, SynthesizingSpeaker, speak_best_effort
 from roger.ui.logs import TaskLogStore
 from roger.voice_loop import VoiceLoop
@@ -344,6 +344,9 @@ def _build_voice_loop(args, config: RogerConfig, dependencies: RuntimeDependenci
         wake.score_callback = _build_wake_score_callback(quiet=args.quiet, min_score=args.wake_debug_min_score)
     feedback = None if args.quiet else CompositeFeedback(_feedback_sinks(args, config, dependencies))
     speaker = dependencies.create_tts_speaker(config, no_tts=args.no_tts)
+    pi_runner = dependencies.create_pi_runner(config, registry, offline=args.offline)
+    if hasattr(pi_runner, "request_speech_metadata"):
+        pi_runner.request_speech_metadata = not args.no_tts
     if feedback is not None and hasattr(speaker, "warning_callback"):
         speaker.warning_callback = lambda message: feedback.completed("tts_degraded", message)
     loop_kwargs = {
@@ -357,7 +360,7 @@ def _build_voice_loop(args, config: RogerConfig, dependencies: RuntimeDependenci
             wake,
             dependencies.create_vad_backend(config),
             dependencies.create_stt_backend(config),
-            dependencies.create_pi_runner(config, registry, offline=args.offline),
+            pi_runner,
             speaker,
             **loop_kwargs,
         )
@@ -370,7 +373,7 @@ def _build_voice_loop(args, config: RogerConfig, dependencies: RuntimeDependenci
             wake,
             dependencies.create_vad_backend(config),
             dependencies.create_stt_backend(config),
-            dependencies.create_pi_runner(config, registry, offline=args.offline),
+            pi_runner,
             speaker,
             **loop_kwargs,
         )
@@ -442,6 +445,8 @@ def _run_typed_task(args, config: RogerConfig, registry: SessionRegistry, depend
     feedback.transcription_ready(args.instruction)
     feedback.dispatching(session_name)
     runner = dependencies.create_pi_runner(config, registry, offline=args.offline)
+    if hasattr(runner, "request_speech_metadata"):
+        runner.request_speech_metadata = not args.no_tts
     speaker = dependencies.create_tts_speaker(config, no_tts=args.no_tts)
     speech_preparer = dependencies.create_speech_preparer(config)
     try:
@@ -456,14 +461,14 @@ def _run_typed_task(args, config: RogerConfig, registry: SessionRegistry, depend
             speak_best_effort(speaker, script.speech_text)
         log_path = _task_log_path(runner)
         return {"status": "failed", "session": session_name, "response": message, "dispatched": True, "log": log_path}
-    feedback.completed("complete", response)
+    script = speech_preparer(response)
+    feedback.completed("complete", script.display_text)
     if not args.no_tts:
-        script = speech_preparer(response)
         _record_speech_log(runner, script)
         _warn_speech_degradation(feedback, script)
         speak_best_effort(speaker, script.speech_text)
     log_path = _task_log_path(runner)
-    return {"status": "complete", "session": session_name, "response": response, "dispatched": True, "log": log_path}
+    return {"status": "complete", "session": session_name, "response": script.display_text, "dispatched": True, "log": log_path}
 
 
 def _warn_speech_degradation(feedback, script) -> None:
@@ -587,16 +592,7 @@ def _create_tts_speaker(config: RogerConfig, no_tts: bool = False):
 
 
 def _create_speech_preparer(config: RogerConfig):
-    naturalization = config.speech.naturalization
-    if naturalization.enabled:
-        naturalizer = GemmaSpeechNaturalizer(
-            base_url=naturalization.base_url,
-            model=naturalization.model,
-            timeout_seconds=naturalization.timeout_seconds,
-            max_input_chars=naturalization.max_input_chars,
-        )
-        return naturalizer.naturalize
-    return prepare_speech_script
+    return parse_speech_response if config.speech.naturalization.enabled else prepare_speech_script
 
 
 def _create_overlay_feedback(config: RogerConfig):

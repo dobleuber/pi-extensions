@@ -49,6 +49,31 @@ class PiAgentRunnerTests(unittest.TestCase):
         self.assertIn("/tmp/sessions/current-project", calls[0][0])
         self.assertTrue(client.stopped)
 
+    def test_runner_can_request_roger_speech_metadata(self):
+        class MetadataClient(FakeClient):
+            def __init__(self):
+                super().__init__()
+                self.metadata = None
+
+            def prompt(self, message, metadata=None):
+                self.prompted = message
+                self.metadata = metadata
+                return {"success": True}
+
+        client = MetadataClient()
+        registry = SessionRegistry.default(project_dir=Path("/tmp/project"))
+        manager = PiSessionManager(registry=registry, session_dir=Path("/tmp/sessions"))
+        runner = PiAgentRunner(
+            session_manager=manager,
+            client_factory=lambda command, cwd: client,
+            request_speech_metadata=True,
+        )
+
+        result = runner.run_task("system", "qué hora es")
+
+        self.assertEqual(result, "Hecho")
+        self.assertEqual(client.metadata, {"source": "roger", "speech": {"enabled": True, "language": "es"}})
+
     def test_runner_strips_local_chat_template_tokens_from_collected_text(self):
         client = FakeClient(collected_text="ok<|im_end|>")
         registry = SessionRegistry.default(project_dir=Path("/tmp/project"))

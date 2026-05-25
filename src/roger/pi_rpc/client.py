@@ -23,7 +23,12 @@ class PiRpcClient:
             return
         self._process = self._process_factory(command or ["pi", "--mode", "rpc"])
 
-    def prompt(self, message: str, streaming_behavior: str | None = None) -> dict[str, Any]:
+    def prompt(
+        self,
+        message: str,
+        streaming_behavior: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         command: dict[str, Any] = {
             "id": self._request_id(),
             "type": "prompt",
@@ -31,6 +36,8 @@ class PiRpcClient:
         }
         if streaming_behavior is not None:
             command["streamingBehavior"] = streaming_behavior
+        if metadata is not None:
+            command["metadata"] = metadata
         self.send(command)
         return self.read_response(command["id"])
 
