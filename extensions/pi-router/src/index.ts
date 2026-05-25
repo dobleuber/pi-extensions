@@ -135,7 +135,10 @@ export function installPiRouter(pi: ExtensionAPI, dependencies: PiRouterDependen
 	});
 
 	pi.on("message_end", async (event, ctx) => {
-		if (!lastDetails || event.message?.role !== "assistant") {
+		if (event.message?.role !== "assistant") {
+			return;
+		}
+		if (!lastDetails && !lastRogerSpeechRequest) {
 			return;
 		}
 		const englishAnswer = extractTextContent(event.message.content);
@@ -145,13 +148,15 @@ export function installPiRouter(pi: ExtensionAPI, dependencies: PiRouterDependen
 		const translate = dependencies.translateFinalAnswer
 			?? ((answer: string, routerModel: RouterConfig["routerModel"]) => translateFinalAnswerToSpanish(answer, routerModel));
 		const translated = await translate(englishAnswer, config.routerModel);
-		lastDetails = extendRouterDetailsAfterCompletion(lastDetails, {
-			englishAnswer: translated.englishAnswer,
-			spanishAnswer: translated.spanishAnswer,
-			effectiveThinkingLevel: typeof (pi as any).getThinkingLevel === "function" ? (pi as any).getThinkingLevel() : undefined,
-			fallbackEvents: translated.degradedReason ? [translated.degradedReason] : undefined,
-		});
-		pi.appendEntry("pi-router-details", lastDetails);
+		if (lastDetails) {
+			lastDetails = extendRouterDetailsAfterCompletion(lastDetails, {
+				englishAnswer: translated.englishAnswer,
+				spanishAnswer: translated.spanishAnswer,
+				effectiveThinkingLevel: typeof (pi as any).getThinkingLevel === "function" ? (pi as any).getThinkingLevel() : undefined,
+				fallbackEvents: translated.degradedReason ? [translated.degradedReason] : undefined,
+			});
+			pi.appendEntry("pi-router-details", lastDetails);
+		}
 		if (translated.degradedReason) {
 			const warning = `Pi router warning: ${translated.degradedReason}; showing original answer.`;
 			if (ctx?.ui?.notify) {

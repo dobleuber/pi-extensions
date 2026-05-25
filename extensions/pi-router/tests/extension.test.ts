@@ -114,6 +114,43 @@ describe("pi-router extension entrypoint", () => {
 		});
 	});
 
+	it("naturalizes Roger speech responses even when prompt routing is off", async () => {
+		const handlers = new Map<string, Array<(event: any, ctx: any) => Promise<any>>>();
+		const pi = {
+			registerCommand() {},
+			on(event: string, handler: (event: any, ctx: any) => Promise<any>) { handlers.set(event, [...(handlers.get(event) ?? []), handler]); },
+			appendEntry() {},
+			setThinkingLevel() {},
+		};
+		const ctx = { ui: { notify() {}, setStatus() {} } };
+		let translatedInput = "";
+
+		installPiRouter(pi as any, {
+			stateStore: { loadState: () => "off", saveState() {} },
+			translateFinalAnswer: async (answer: string) => {
+				translatedInput = answer;
+				return { englishAnswer: answer, spanishAnswer: "Son las diez y treinta." };
+			},
+		});
+		await handlers.get("input")![0]({
+			text: "qué hora es",
+			source: "roger",
+			metadata: { source: "roger", speech: { enabled: true, language: "es" } },
+		}, ctx);
+
+		const result = await handlers.get("message_end")![0]({
+			message: { role: "assistant", content: [{ type: "text", text: "It's 10:30." }] },
+		}, ctx);
+
+		assert.equal(translatedInput, "It's 10:30.");
+		assert.deepEqual(JSON.parse(result.message.content[0].text), {
+			display_text: "It's 10:30.",
+			speech_text: "Son las diez y treinta.",
+			speech_language: "es",
+			speech_source: "pi-router",
+		});
+	});
+
 	it("translates final assistant messages and updates latest router details", async () => {
 		const commands = new Map<string, { handler: (args: string, ctx: any) => Promise<void> }>();
 		const handlers = new Map<string, Array<(event: any, ctx: any) => Promise<any>>>();
