@@ -6,7 +6,7 @@ from roger.backends.tts_kokoro import KokoroTtsAdapter
 from roger.backends.vad_silero import SileroVadAdapter
 from roger.backends.wake_manual import ManualWakeWordAdapter
 from roger.backends.wake_nanowakeword import NanoWakeWordAdapter
-from roger.config import RogerConfig
+from roger.config import RogerConfig, SpeechConfig, TtsConfig
 
 
 class BackendFactoryTests(unittest.TestCase):
@@ -38,6 +38,20 @@ class BackendFactoryTests(unittest.TestCase):
         wake = create_wake_backend(config, force_manual=True)
 
         self.assertIsInstance(wake, ManualWakeWordAdapter)
+
+    def test_tts_factory_passes_supported_kokoro_controls(self):
+        config = RogerConfig.default()
+        config = RogerConfig(
+            speech=SpeechConfig(tts=TtsConfig(voice="ef_dora,af_heart", speed=0.95, split_pattern="\\n+")),
+            models=config.models,
+            sessions=config.sessions,
+        )
+
+        tts = create_tts_backend(config)
+
+        self.assertEqual(tts.voice, "ef_dora,af_heart")
+        self.assertEqual(tts.speed, 0.95)
+        self.assertEqual(tts.split_pattern, "\\n+")
 
 
 if __name__ == "__main__":

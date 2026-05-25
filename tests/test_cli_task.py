@@ -4,13 +4,14 @@ from roger import cli
 
 
 class FakeRunner:
-    def __init__(self):
+    def __init__(self, response="Respuesta real de pi"):
         self.calls = []
         self.last_task_log = None
+        self.response = response
 
     def run_task(self, session_name, instruction):
         self.calls.append((session_name, instruction))
-        return "Respuesta real de pi"
+        return self.response
 
 
 class FakeSpeaker:
@@ -122,6 +123,22 @@ class CliTaskTests(unittest.TestCase):
 
         self.assertEqual(speaker.spoken, ["Respuesta real de pi"])
 
+    def test_task_command_speaks_naturalized_response_but_prints_canonical_output(self):
+        runner = FakeRunner(response="Son las **10:30 am**. Revisa el README en GitHub.")
+        speaker = FakeSpeaker()
+
+        exit_code, output = cli.run(
+            ["task", "--session", "current-project", "corre pwd", "--no-overlay"],
+            dependencies=cli.RuntimeDependencies(
+                create_pi_runner=lambda config, registry, offline=False: runner,
+                create_tts_speaker=lambda config, no_tts=False: speaker,
+            ),
+        )
+
+        self.assertEqual(exit_code, 0)
+        self.assertIn("Son las **10:30 am**. Revisa el README en GitHub.", output)
+        self.assertEqual(speaker.spoken, ["Son las diez y treinta de la mañana Revisa el ridmi en guit jab."])
+
     def test_task_command_no_tts_mode_skips_synthesis_but_keeps_text_result(self):
         class UnexpectedSpeaker(FakeSpeaker):
             def speak(self, text):
@@ -160,6 +177,20 @@ class CliTaskTests(unittest.TestCase):
         self.assertIn("llama.cpp server unavailable", output)
         self.assertEqual(overlay.calls[-1], ("completed", "failed", "llama.cpp server unavailable"))
         self.assertEqual(speaker.spoken, ["llama.cpp server unavailable"])
+
+    def test_say_command_uses_naturalized_speech_text(self):
+        speaker = FakeSpeaker()
+
+        exit_code, output = cli.run(
+            ["say", "Abrí el README en GitHub"],
+            dependencies=cli.RuntimeDependencies(
+                create_tts_speaker=lambda config, no_tts=False: speaker,
+            ),
+        )
+
+        self.assertEqual(exit_code, 0)
+        self.assertIn("spoken: yes", output)
+        self.assertEqual(speaker.spoken, ["Abrí el ridmi en guit jab"])
 
     def test_task_command_keeps_complete_status_when_tts_fails(self):
         class FailingSpeaker:

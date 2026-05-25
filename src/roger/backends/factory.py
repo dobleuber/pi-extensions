@@ -50,6 +50,8 @@ def create_tts_backend(config: RogerConfig):
             voice=voice,
             repo_id=config.speech.tts.repo_id,
             device=config.speech.tts.device,
+            speed=config.speech.tts.speed,
+            split_pattern=config.speech.tts.split_pattern,
             config_path=config.speech.tts.config_path,
             model_path=config.speech.tts.model_path,
             voice_path=config.speech.tts.voice_path,

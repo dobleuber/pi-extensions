@@ -309,6 +309,81 @@ class RealAdapterBehaviorTests(unittest.TestCase):
         self.assertEqual(speech.audio, b"audio")
         self.assertEqual(speech.sample_rate, 24_000)
 
+    def test_kokoro_passes_speed_and_split_pattern_to_pipeline(self):
+        calls = {}
+
+        class KPipeline:
+            def __init__(self, lang_code, repo_id=None, device=None):
+                pass
+
+            def __call__(self, text, voice=None, speed=1, split_pattern=None):
+                calls["text"] = text
+                calls["voice"] = voice
+                calls["speed"] = speed
+                calls["split_pattern"] = split_pattern
+                return []
+
+        module = types.SimpleNamespace(KPipeline=KPipeline)
+        adapter = KokoroTtsAdapter(
+            import_module=lambda _: module,
+            voice="ef_dora",
+            speed=0.9,
+            split_pattern="\\n+",
+            local_files_only=False,
+        )
+
+        adapter.synthesize("Hola")
+
+        self.assertEqual(calls["voice"], "ef_dora")
+        self.assertEqual(calls["speed"], 0.9)
+        self.assertEqual(calls["split_pattern"], "\\n+")
+
+    def test_kokoro_resolves_local_voice_blend_assets(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            config = root / "config.json"
+            model = root / "kokoro-v1_0.pth"
+            ef = root / "voices" / "ef_dora.pt"
+            af = root / "voices" / "af_heart.pt"
+            ef.parent.mkdir()
+            config.write_text("{}", encoding="utf-8")
+            model.write_bytes(b"model")
+            ef.write_bytes(b"voice")
+            af.write_bytes(b"voice")
+            calls = {}
+
+            class KModel:
+                def __init__(self, repo_id=None, config=None, model=None):
+                    pass
+
+                def eval(self):
+                    return self
+
+            class KPipeline:
+                def __init__(self, lang_code, repo_id=None, model=True, device=None):
+                    pass
+
+                def __call__(self, text, voice=None, speed=1, split_pattern=None):
+                    calls["voice"] = voice
+                    return []
+
+            module = types.SimpleNamespace(KModel=KModel, KPipeline=KPipeline)
+            adapter = KokoroTtsAdapter(
+                import_module=lambda _: module,
+                voice="ef_dora,af_heart",
+                config_path=config,
+                model_path=model,
+                local_files_only=True,
+            )
+
+            adapter.synthesize("Hola")
+
+        self.assertIn(str(ef), calls["voice"])
+        self.assertIn(str(af), calls["voice"])
+        self.assertIn(",", calls["voice"])
+
     def test_kokoro_uses_local_model_config_and_voice_when_requested(self):
         import tempfile
         import warnings

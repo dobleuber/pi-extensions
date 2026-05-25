@@ -17,6 +17,8 @@ class KokoroTtsAdapter(OptionalDependencyMixin):
         voice: str = "ef_dora",
         lang_code: str = "e",
         device: str | None = None,
+        speed: float = 1.0,
+        split_pattern: str | None = None,
         repo_id: str = "hexgrad/Kokoro-82M",
         config_path: str | Path | None = None,
         model_path: str | Path | None = None,
@@ -27,6 +29,8 @@ class KokoroTtsAdapter(OptionalDependencyMixin):
         self.voice = voice
         self.lang_code = lang_code
         self.device = device
+        self.speed = speed
+        self.split_pattern = split_pattern
         self.repo_id = repo_id
         self.config_path = Path(config_path).expanduser() if config_path is not None else None
         self.model_path = Path(model_path).expanduser() if model_path is not None else None
@@ -39,7 +43,10 @@ class KokoroTtsAdapter(OptionalDependencyMixin):
         pipeline = self._load_pipeline()
         audio_chunks: list[bytes] = []
         voice = self._voice_for_call or self.voice
-        for result in pipeline(text, voice=voice, speed=1):
+        kwargs = {"voice": voice, "speed": self.speed}
+        if self.split_pattern is not None:
+            kwargs["split_pattern"] = self.split_pattern
+        for result in pipeline(text, **kwargs):
             audio = _extract_audio(result)
             if audio is None:
                 continue
@@ -79,8 +86,9 @@ class KokoroTtsAdapter(OptionalDependencyMixin):
     def _resolve_local_assets(self) -> tuple[Path, Path, Path]:
         config_path = self.config_path or _hf_cache_file(self.repo_id, "config.json")
         model_path = self.model_path or _hf_cache_file(self.repo_id, "kokoro-v1_0.pth")
-        voice_path = self.voice_path or _hf_cache_file(self.repo_id, f"voices/{self.voice}.pt")
-        missing = [path for path in (config_path, model_path, voice_path) if not path.exists()]
+        voice_path = self.voice_path or self._resolve_default_voice_asset(config_path)
+        voice_paths = [Path(part) for part in str(voice_path).split(",")]
+        missing = [path for path in (config_path, model_path, *voice_paths) if not path.exists()]
         if missing:
             missing_list = ", ".join(str(path) for path in missing)
             raise FileNotFoundError(
@@ -88,6 +96,16 @@ class KokoroTtsAdapter(OptionalDependencyMixin):
                 "speech.tts.config_path/model_path/voice_path. Missing: " + missing_list
             )
         return config_path, model_path, voice_path
+
+    def _resolve_default_voice_asset(self, config_path: Path) -> Path | str:
+        voices = [part.strip() for part in self.voice.split(",")]
+        if self.config_path is not None or self.model_path is not None:
+            local_voices_dir = config_path.parent / "voices"
+            paths = [local_voices_dir / f"{voice}.pt" for voice in voices]
+            if len(paths) == 1:
+                return paths[0]
+            return ",".join(str(path) for path in paths)
+        return _resolve_voice_asset(self.repo_id, self.voice)
 
 
 def _extract_audio(result):
@@ -98,6 +116,13 @@ def _extract_audio(result):
     if audio is not None:
         return audio
     return getattr(result, "audio", None)
+
+
+def _resolve_voice_asset(repo_id: str, voice: str) -> Path | str:
+    voices = [part.strip() for part in voice.split(",")]
+    if len(voices) == 1:
+        return _hf_cache_file(repo_id, f"voices/{voices[0]}.pt")
+    return ",".join(str(_hf_cache_file(repo_id, f"voices/{part}.pt")) for part in voices)
 
 
 def _hf_cache_file(repo_id: str, filename: str) -> Path:

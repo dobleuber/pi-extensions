@@ -5,7 +5,9 @@ from typing import Protocol
 
 from roger.routing.registry import SessionRegistry
 from roger.routing.router import Router
-from roger.summarization import summarize_for_speech
+from collections.abc import Callable
+
+from roger.summarization import SpeechScript, prepare_speech_script
 from roger.ui.preview import PreviewAction, TranscriptionPreview
 from roger.feedback import Feedback
 from roger.tts_speaker import speak_best_effort
@@ -29,23 +31,32 @@ class ManualLoopResult:
 
 
 class ManualLoop:
-    def __init__(self, registry: SessionRegistry, pi_runner: PiRunner, tts: TtsSpeaker, feedback: Feedback | None = None):
+    def __init__(
+        self,
+        registry: SessionRegistry,
+        pi_runner: PiRunner,
+        tts: TtsSpeaker,
+        feedback: Feedback | None = None,
+        speech_preparer: Callable[[str], SpeechScript] = prepare_speech_script,
+    ):
         self.router = Router(registry)
         self.preview = TranscriptionPreview()
         self.pi_runner = pi_runner
         self.tts = tts
         self.feedback = feedback
+        self.speech_preparer = speech_preparer
 
     def run_transcription(self, transcription: str, preview_action: str = "accept") -> ManualLoopResult:
         action = PreviewAction(preview_action)
         decision = self.preview.review(transcription, action=action)
         if not decision.accepted:
-            speak_best_effort(self.tts, "Preview cancelled")
-            return ManualLoopResult(status="cancelled", dispatched=False, session_name=None, message="Preview cancelled")
+            message = "Preview cancelled"
+            speak_best_effort(self.tts, self.speech_preparer(message).speech_text)
+            return ManualLoopResult(status="cancelled", dispatched=False, session_name=None, message=message)
 
         route = self.router.route(decision.text)
         if route.needs_clarification:
-            speak_best_effort(self.tts, route.question)
+            speak_best_effort(self.tts, self.speech_preparer(route.question).speech_text)
             return ManualLoopResult(status="needs_clarification", dispatched=False, session_name=None, message=route.question)
 
         if self.feedback is not None:
@@ -54,9 +65,10 @@ class ManualLoop:
         try:
             response = self.pi_runner.run_task(route.session_name, decision.text)
         except Exception as error:  # pi-agent failures should surface without crashing the loop
-            speak_best_effort(self.tts, str(error))
-            return ManualLoopResult(status="failed", dispatched=False, session_name=route.session_name, message=str(error))
+            message = str(error)
+            speak_best_effort(self.tts, self.speech_preparer(message).speech_text)
+            return ManualLoopResult(status="failed", dispatched=False, session_name=route.session_name, message=message)
 
-        summary = summarize_for_speech(response)
-        speak_best_effort(self.tts, summary)
-        return ManualLoopResult(status="complete", dispatched=True, session_name=route.session_name, message=summary)
+        script = self.speech_preparer(response)
+        speak_best_effort(self.tts, script.speech_text)
+        return ManualLoopResult(status="complete", dispatched=True, session_name=route.session_name, message=response)

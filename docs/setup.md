@@ -212,7 +212,11 @@ uv run roger say "Hola, soy Roger."
 
 On Omarchy/PipeWire, Roger prefers `pw-play` for playback and falls back to `sounddevice` only if `pw-play` is unavailable.
 
-Roger uses Kokoro local files by default (`speech.tts.local_files_only = true`) and resolves the model from the Hugging Face cache without network calls. Kokoro runs as a local PyTorch TTS model inside Roger; it is not served through llama.cpp. On this system Roger sets `speech.tts.device = "cuda"`, so Kokoro moves its model to the RTX GPU when available. TTS is best-effort: if Kokoro synthesis or local playback fails, Roger keeps the textual result/overlay visible and continues in text-only degraded mode instead of changing the task result. If needed, pin explicit paths in `roger.toml`:
+Roger uses Kokoro local files by default (`speech.tts.local_files_only = true`) and resolves the model from the Hugging Face cache without network calls. Kokoro runs as a local PyTorch TTS model inside Roger; it is not served through llama.cpp. On this system Roger sets `speech.tts.device = "cuda"`, so Kokoro moves its model to the RTX GPU when available. TTS is best-effort: if speech naturalization, Kokoro synthesis, or local playback fails, Roger keeps the textual result/overlay visible and continues in degraded or text-only mode instead of changing the task result.
+
+Roger separates canonical written text from TTS speech text. Preview, overlay, CLI, task logs, and retry/debug context keep correct spelling such as `README`, `GitHub`, `JSON`, paths, commands, and Markdown. The TTS input may be rewritten for pronunciation, e.g. `Son las **10:30 am**. Revisa el README en GitHub.` can be spoken as “Son las diez y treinta de la mañana. Revisa el ridmi en guit jab.” When enabled with `[speech.naturalization] enabled = true`, the preferred naturalizer is local Gemma through the llama.cpp OpenAI-compatible endpoint (`http://127.0.0.1:11434/v1`, model `gemma4`); if that endpoint is unavailable or times out, Roger uses deterministic local cleanup for Markdown, times, and common anglicisms without changing task status.
+
+Supported Kokoro controls in this implementation are `voice`, comma-separated voice blends when all voice assets are available, `speed`, and `split_pattern`. The installed Kokoro API does not expose direct emotion/tone/style controls; Roger style is approximated through naturalized phrasing and supported speed/voice settings. If needed, pin explicit paths in `roger.toml`:
 
 ```toml
 [speech.tts]
@@ -221,6 +225,8 @@ voice = "ef_dora"
 repo_id = "hexgrad/Kokoro-82M"
 device = "cuda"
 local_files_only = true
+speed = 1.0
+# split_pattern = "\\n+"
 config_path = "~/.cache/huggingface/hub/models--hexgrad--Kokoro-82M/snapshots/<revision>/config.json"
 model_path = "~/.cache/huggingface/hub/models--hexgrad--Kokoro-82M/snapshots/<revision>/kokoro-v1_0.pth"
 voice_path = "~/.cache/huggingface/hub/models--hexgrad--Kokoro-82M/snapshots/<revision>/voices/ef_dora.pt"
@@ -296,7 +302,7 @@ Each dispatched pi-agent task creates a structured JSONL task log under:
 .roger/logs/
 ```
 
-Typed task CLI output includes a `log: ...` line when a persisted log is available. Logs contain task start/completion events, assistant text deltas, tool execution start/update/end events, prompt rejection/failure details, session name, and selected model mode (`online` or `offline-fallback`). The default retention keeps the most recent 50 JSONL files and prunes older files. Roger keeps spoken output concise; detailed progress remains in the textual log.
+Typed task CLI output includes a `log: ...` line when a persisted log is available. Logs contain task start/completion events, assistant text deltas, tool execution start/update/end events, prompt rejection/failure details, session name, and selected model mode (`online` or `offline-fallback`). When Roger prepares speech, structured metadata can include both canonical display text and TTS speech text plus the naturalizer source/degradation reason, but normal visible rendering keeps canonical written output by default. The default retention keeps the most recent 50 JSONL files and prunes older files. Roger keeps spoken output concise; detailed progress remains in the textual log.
 
 ## Cancellation
 

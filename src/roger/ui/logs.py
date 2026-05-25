@@ -7,6 +7,8 @@ import re
 from pathlib import Path
 from typing import Any, Callable
 
+from roger.summarization import SpeechScript
+
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -92,6 +94,16 @@ class TaskLog:
 
     def reject(self, message: str) -> None:
         self.fail(message)
+
+    def record_speech(self, script: SpeechScript) -> None:
+        self._append("speech", {
+            "display_text": script.display_text,
+            "speech_text": script.speech_text,
+            "source": script.source,
+            "style": script.style,
+            "degradation_reason": script.degradation_reason,
+            "metadata": script.metadata,
+        })
 
     def render_visible(self) -> str:
         lines = [

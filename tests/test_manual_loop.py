@@ -6,15 +6,16 @@ from roger.routing.registry import SessionRegistry
 
 
 class FakePiRunner:
-    def __init__(self, fail=False):
+    def __init__(self, fail=False, response="Tarea completada con muchos detalles"):
         self.calls = []
         self.fail = fail
+        self.response = response
 
     def run_task(self, session_name, instruction):
         self.calls.append((session_name, instruction))
         if self.fail:
             raise RuntimeError("pi unavailable")
-        return "Tarea completada con muchos detalles"
+        return self.response
 
 
 class FakeTts:
@@ -93,6 +94,16 @@ class ManualLoopTests(unittest.TestCase):
         self.assertEqual(result.status, "complete")
         self.assertTrue(result.dispatched)
         self.assertEqual(result.message, "Tarea completada con muchos detalles")
+
+    def test_manual_loop_speaks_naturalized_text_but_returns_canonical_message(self):
+        tts = FakeTts()
+        pi = FakePiRunner(response="Son las **10:30 am**. Revisa el README en GitHub.")
+        loop = ManualLoop(SessionRegistry.default(project_dir=Path("/tmp/project")), pi_runner=pi, tts=tts)
+
+        result = loop.run_transcription("corre los tests")
+
+        self.assertEqual(result.message, "Son las **10:30 am**. Revisa el README en GitHub.")
+        self.assertEqual(tts.spoken, ["Son las diez y treinta de la mañana Revisa el ridmi en guit jab."])
 
     def test_clarification_keeps_visible_message_when_tts_fails(self):
         tts = FakeTts(fail=True)

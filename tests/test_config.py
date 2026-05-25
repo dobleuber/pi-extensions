@@ -27,7 +27,14 @@ class RogerConfigTests(unittest.TestCase):
         self.assertEqual(config.speech.tts.backend, "kokoro")
         self.assertEqual(config.speech.tts.repo_id, "hexgrad/Kokoro-82M")
         self.assertEqual(config.speech.tts.device, "cuda")
+        self.assertEqual(config.speech.tts.speed, 1.0)
+        self.assertIsNone(config.speech.tts.split_pattern)
         self.assertTrue(config.speech.tts.local_files_only)
+        self.assertFalse(config.speech.naturalization.enabled)
+        self.assertEqual(config.speech.naturalization.model, "gemma4")
+        self.assertEqual(config.speech.naturalization.base_url, "http://127.0.0.1:11434/v1")
+        self.assertEqual(config.speech.naturalization.timeout_seconds, 2.0)
+        self.assertEqual(config.speech.naturalization.max_input_chars, 4000)
         self.assertEqual(config.models.online.provider, "pi-default")
         self.assertEqual(config.models.offline.provider, "llama-cpp")
         self.assertEqual(config.models.offline.model, "gemma4")
@@ -49,12 +56,19 @@ class RogerConfigTests(unittest.TestCase):
                     """
                     [speech.tts]
                     backend = "piper"
+                    speed = 0.92
+                    split_pattern = "\\n+"
                     local_files_only = false
 
                     [speech.stt]
                     model = "medium"
                     device = "cpu"
                     compute_type = "int8"
+
+                    [speech.naturalization]
+                    enabled = true
+                    timeout_seconds = 0.5
+                    max_input_chars = 500
 
                     [speech.wake]
                     threshold = 0.82
@@ -75,11 +89,16 @@ class RogerConfigTests(unittest.TestCase):
             config = load_config(config_path, project_dir=Path("/workspace/app"))
 
         self.assertEqual(config.speech.tts.backend, "piper")
+        self.assertEqual(config.speech.tts.speed, 0.92)
+        self.assertEqual(config.speech.tts.split_pattern, "\n+")
         self.assertFalse(config.speech.tts.local_files_only)
         self.assertEqual(config.speech.stt.model, "medium")
         self.assertEqual(config.speech.stt.device, "cpu")
         self.assertEqual(config.speech.stt.compute_type, "int8")
         self.assertEqual(config.speech.wake.threshold, 0.82)
+        self.assertTrue(config.speech.naturalization.enabled)
+        self.assertEqual(config.speech.naturalization.timeout_seconds, 0.5)
+        self.assertEqual(config.speech.naturalization.max_input_chars, 500)
         self.assertEqual(config.speech.wake.target_phrase, "hola roger")
         self.assertFalse(config.models.automatic_fallback)
         self.assertFalse(config.models.fallback_enabled)

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum
 
@@ -8,6 +9,7 @@ from roger.dialogue import DialogueControl, DialogueDecision
 from roger.feedback import Feedback
 from roger.manual_loop import ManualLoop, PiRunner
 from roger.routing.registry import SessionRegistry
+from roger.summarization import SpeechScript, prepare_speech_script
 from roger.tts_speaker import speak_best_effort
 
 
@@ -40,6 +42,7 @@ class VoiceLoop:
         preview_action: str = "accept",
         feedback: Feedback | None = None,
         dialogue_control: DialogueControl | None = None,
+        speech_preparer: Callable[[str], SpeechScript] = prepare_speech_script,
     ):
         self.wake = wake
         self.vad = vad
@@ -47,7 +50,8 @@ class VoiceLoop:
         self.feedback = feedback
         self.tts = tts
         self.dialogue_control = dialogue_control or DialogueControl()
-        self.manual_loop = ManualLoop(registry, pi_runner=pi_runner, tts=tts, feedback=feedback)
+        self.speech_preparer = speech_preparer
+        self.manual_loop = ManualLoop(registry, pi_runner=pi_runner, tts=tts, feedback=feedback, speech_preparer=speech_preparer)
         self.preview_action = preview_action
 
     def run_once(self) -> VoiceLoopResult:
@@ -87,7 +91,7 @@ class VoiceLoop:
         dialogue_decision = self.dialogue_control.decide(transcription.text)
         if dialogue_decision == DialogueDecision.GOODBYE:
             message = "Hasta luego."
-            speak_best_effort(self.tts, message)
+            speak_best_effort(self.tts, self.speech_preparer(message).speech_text)
             if self.feedback is not None:
                 self.feedback.completed("goodbye", message)
             return VoiceLoopResult(
@@ -99,7 +103,7 @@ class VoiceLoop:
         if dialogue_decision == DialogueDecision.STOP:
             result = self.manual_loop.pi_runner.cancel_active()
             message = result.message
-            speak_best_effort(self.tts, message)
+            speak_best_effort(self.tts, self.speech_preparer(message).speech_text)
             if self.feedback is not None:
                 self.feedback.completed(result.status, message)
             return VoiceLoopResult(

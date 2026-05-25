@@ -3,6 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from roger.summarization import SpeechScript
 from roger.ui.logs import TaskLog, TaskLogStore
 
 
@@ -81,6 +82,25 @@ class TaskLogTests(unittest.TestCase):
 
         self.assertLessEqual(len(rendered), 80)
         self.assertIn("truncated", rendered)
+
+    def test_task_log_records_speech_metadata_without_showing_phonetic_text(self):
+        log = TaskLog(session_name="current-project")
+        script = SpeechScript(
+            display_text="Revisa el README en GitHub",
+            speech_text="Revisa el ridmi en guit jab",
+            source="fallback",
+            style="neutral",
+            degradation_reason="naturalizer unavailable",
+        )
+
+        log.record_speech(script)
+        rendered = log.render_visible()
+
+        self.assertEqual(log.events[-1].kind, "speech")
+        self.assertEqual(log.events[-1].data["display_text"], "Revisa el README en GitHub")
+        self.assertEqual(log.events[-1].data["speech_text"], "Revisa el ridmi en guit jab")
+        self.assertNotIn("ridmi", rendered)
+        self.assertNotIn("guit jab", rendered)
 
     def test_task_log_store_persists_jsonl_and_prunes_old_files(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -39,10 +39,23 @@ class TtsConfig:
     voice: str = "spanish-default"
     repo_id: str = "hexgrad/Kokoro-82M"
     device: str | None = "cuda"
+    speed: float = 1.0
+    split_pattern: str | None = None
     config_path: Path | None = None
     model_path: Path | None = None
     voice_path: Path | None = None
     local_files_only: bool = True
+
+
+@dataclass(frozen=True)
+class SpeechNaturalizationConfig:
+    enabled: bool = False
+    provider: str = "llama-cpp"
+    model: str = "gemma4"
+    base_url: str = "http://127.0.0.1:11434/v1"
+    timeout_seconds: float = 2.0
+    max_input_chars: int = 4000
+    fallback_enabled: bool = True
 
 
 @dataclass(frozen=True)
@@ -51,6 +64,7 @@ class SpeechConfig:
     vad: VadConfig = field(default_factory=VadConfig)
     stt: SttConfig = field(default_factory=SttConfig)
     tts: TtsConfig = field(default_factory=TtsConfig)
+    naturalization: SpeechNaturalizationConfig = field(default_factory=SpeechNaturalizationConfig)
 
 
 @dataclass(frozen=True)
@@ -125,6 +139,11 @@ def _merge_config(config: RogerConfig, data: dict[str, Any]) -> RogerConfig:
         speech = replace(speech, stt=_merge_dataclass(speech.stt, speech_data["stt"]))
     if "tts" in speech_data:
         speech = replace(speech, tts=_merge_dataclass(speech.tts, speech_data["tts"]))
+    if "naturalization" in speech_data:
+        speech = replace(
+            speech,
+            naturalization=_merge_dataclass(speech.naturalization, speech_data["naturalization"]),
+        )
 
     models = config.models
     models_data = data.get("models", {})

@@ -28,7 +28,7 @@ from roger.pi_rpc.runner import PiAgentRunner
 from roger.pi_rpc.sessions import PiSessionManager
 from roger.routing.registry import SessionEntry, SessionRegistry
 from roger.routing.router import Router
-from roger.summarization import summarize_for_speech
+from roger.summarization import GemmaSpeechNaturalizer, prepare_speech_script
 from roger.tts_speaker import NoopSpeaker, SafeSpeaker, SynthesizingSpeaker, speak_best_effort
 from roger.ui.logs import TaskLogStore
 from roger.voice_loop import VoiceLoop
@@ -45,6 +45,7 @@ class RuntimeDependencies:
     create_pi_runner: Callable = None
     create_tts_speaker: Callable = None
     create_overlay_feedback: Callable = None
+    create_speech_preparer: Callable = None
     voice_loop_class: Type = VoiceLoop
 
     def __post_init__(self):
@@ -54,6 +55,8 @@ class RuntimeDependencies:
             object.__setattr__(self, "create_tts_speaker", _create_tts_speaker)
         if self.create_overlay_feedback is None:
             object.__setattr__(self, "create_overlay_feedback", _create_overlay_feedback)
+        if self.create_speech_preparer is None:
+            object.__setattr__(self, "create_speech_preparer", _create_speech_preparer)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -230,7 +233,8 @@ def run(argv: Sequence[str] | None = None, dependencies: RuntimeDependencies | N
         return 0, "overlay demo sent\n"
     if args.command == "say":
         speaker = dependencies.create_tts_speaker(config, no_tts=False)
-        speak_best_effort(speaker, args.text)
+        script = dependencies.create_speech_preparer(config)(args.text)
+        speak_best_effort(speaker, script.speech_text)
         return 0, "Roger say result\nspoken: yes\n"
     if args.command == "install-autostart":
         result = AutostartInstaller(home=args.home, project_dir=args.project_dir).install()
@@ -274,6 +278,11 @@ def _format_health(config) -> str:
         f"tts: {config.speech.tts.backend}",
         f"tts local files only: {config.speech.tts.local_files_only}",
         f"tts device: {config.speech.tts.device or '(backend default)'}",
+        f"tts voice: {config.speech.tts.voice}",
+        f"tts speed: {config.speech.tts.speed}",
+        f"tts split pattern: {config.speech.tts.split_pattern or '(backend default)'}",
+        "tts supported prosody: voice, voice blend, speed, split pattern",
+        "tts unsupported prosody: direct emotion/tone/style controls",
         f"online model provider: {config.models.online.provider}",
         f"automatic fallback: {config.models.automatic_fallback}",
         f"fallback enabled: {config.models.fallback_enabled}",
@@ -337,16 +346,34 @@ def _build_voice_loop(args, config: RogerConfig, dependencies: RuntimeDependenci
     speaker = dependencies.create_tts_speaker(config, no_tts=args.no_tts)
     if feedback is not None and hasattr(speaker, "warning_callback"):
         speaker.warning_callback = lambda message: feedback.completed("tts_degraded", message)
-    loop = dependencies.voice_loop_class(
-        registry,
-        wake,
-        dependencies.create_vad_backend(config),
-        dependencies.create_stt_backend(config),
-        dependencies.create_pi_runner(config, registry, offline=args.offline),
-        speaker,
-        preview_action=args.preview_action,
-        feedback=feedback,
-    )
+    loop_kwargs = {
+        "preview_action": args.preview_action,
+        "feedback": feedback,
+        "speech_preparer": dependencies.create_speech_preparer(config),
+    }
+    try:
+        loop = dependencies.voice_loop_class(
+            registry,
+            wake,
+            dependencies.create_vad_backend(config),
+            dependencies.create_stt_backend(config),
+            dependencies.create_pi_runner(config, registry, offline=args.offline),
+            speaker,
+            **loop_kwargs,
+        )
+    except TypeError as error:
+        if "speech_preparer" not in str(error):
+            raise
+        loop_kwargs.pop("speech_preparer")
+        loop = dependencies.voice_loop_class(
+            registry,
+            wake,
+            dependencies.create_vad_backend(config),
+            dependencies.create_stt_backend(config),
+            dependencies.create_pi_runner(config, registry, offline=args.offline),
+            speaker,
+            **loop_kwargs,
+        )
     return registry, wake, loop, feedback
 
 
@@ -416,20 +443,43 @@ def _run_typed_task(args, config: RogerConfig, registry: SessionRegistry, depend
     feedback.dispatching(session_name)
     runner = dependencies.create_pi_runner(config, registry, offline=args.offline)
     speaker = dependencies.create_tts_speaker(config, no_tts=args.no_tts)
+    speech_preparer = dependencies.create_speech_preparer(config)
     try:
         response = runner.run_task(session_name, args.instruction)
     except Exception as error:
         message = str(error)
         feedback.completed("failed", message)
         if not args.no_tts:
-            speak_best_effort(speaker, summarize_for_speech(message))
+            script = speech_preparer(message)
+            _record_speech_log(runner, script)
+            _warn_speech_degradation(feedback, script)
+            speak_best_effort(speaker, script.speech_text)
         log_path = _task_log_path(runner)
         return {"status": "failed", "session": session_name, "response": message, "dispatched": True, "log": log_path}
     feedback.completed("complete", response)
     if not args.no_tts:
-        speak_best_effort(speaker, summarize_for_speech(response))
+        script = speech_preparer(response)
+        _record_speech_log(runner, script)
+        _warn_speech_degradation(feedback, script)
+        speak_best_effort(speaker, script.speech_text)
     log_path = _task_log_path(runner)
     return {"status": "complete", "session": session_name, "response": response, "dispatched": True, "log": log_path}
+
+
+def _warn_speech_degradation(feedback, script) -> None:
+    if not getattr(script, "degradation_reason", ""):
+        return
+    feedback.completed("speech_degraded", f"Spoken output degraded: {script.degradation_reason}")
+
+
+def _record_speech_log(runner, script) -> None:
+    log = getattr(runner, "last_task_log", None)
+    if log is None or not hasattr(log, "record_speech"):
+        return
+    log.record_speech(script)
+    store = getattr(runner, "task_log_store", None)
+    if store is not None:
+        store.save(log)
 
 
 def _format_task_result(result: dict[str, str | bool]) -> str:
@@ -532,6 +582,19 @@ def _create_tts_speaker(config: RogerConfig, no_tts: bool = False):
     if no_tts:
         return NoopSpeaker()
     return SafeSpeaker(SynthesizingSpeaker(create_tts_backend(config)))
+
+
+def _create_speech_preparer(config: RogerConfig):
+    naturalization = config.speech.naturalization
+    if naturalization.enabled:
+        naturalizer = GemmaSpeechNaturalizer(
+            base_url=naturalization.base_url,
+            model=naturalization.model,
+            timeout_seconds=naturalization.timeout_seconds,
+            max_input_chars=naturalization.max_input_chars,
+        )
+        return naturalizer.naturalize
+    return prepare_speech_script
 
 
 def _create_overlay_feedback(config: RogerConfig):
