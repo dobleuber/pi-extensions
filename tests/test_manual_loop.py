@@ -105,6 +105,30 @@ class ManualLoopTests(unittest.TestCase):
         self.assertEqual(result.message, "Son las **10:30 am**. Revisa el README en GitHub.")
         self.assertEqual(tts.spoken, ["Son las diez y treinta de la mañana Revisa el ridmi en guit jab."])
 
+    def test_manual_loop_records_speech_text_for_daemon_debugging(self):
+        from roger.ui.logs import TaskLog
+
+        tts = FakeTts()
+        pi = FakePiRunner(response="The response is in English")
+        pi.last_task_log = TaskLog(session_name="current-project")
+        loop = ManualLoop(
+            SessionRegistry.default(project_dir=Path("/tmp/project")),
+            pi_runner=pi,
+            tts=tts,
+            speech_preparer=lambda text: __import__("roger.summarization", fromlist=["SpeechScript"]).SpeechScript(
+                display_text=text,
+                speech_text="La respuesta está en español.",
+                source="gemma",
+            ),
+        )
+
+        loop.run_transcription("corre los tests")
+
+        speech_events = [event for event in pi.last_task_log.events if event.kind == "speech"]
+        self.assertEqual(len(speech_events), 1)
+        self.assertEqual(speech_events[0].data["display_text"], "The response is in English")
+        self.assertEqual(speech_events[0].data["speech_text"], "La respuesta está en español.")
+
     def test_clarification_keeps_visible_message_when_tts_fails(self):
         tts = FakeTts(fail=True)
         pi = FakePiRunner()

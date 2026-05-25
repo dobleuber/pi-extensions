@@ -51,12 +51,16 @@ class ManualLoop:
         decision = self.preview.review(transcription, action=action)
         if not decision.accepted:
             message = "Preview cancelled"
-            speak_best_effort(self.tts, self.speech_preparer(message).speech_text)
+            script = self.speech_preparer(message)
+            self._record_speech(script)
+            speak_best_effort(self.tts, script.speech_text)
             return ManualLoopResult(status="cancelled", dispatched=False, session_name=None, message=message)
 
         route = self.router.route(decision.text)
         if route.needs_clarification:
-            speak_best_effort(self.tts, self.speech_preparer(route.question).speech_text)
+            script = self.speech_preparer(route.question)
+            self._record_speech(script)
+            speak_best_effort(self.tts, script.speech_text)
             return ManualLoopResult(status="needs_clarification", dispatched=False, session_name=None, message=route.question)
 
         if self.feedback is not None:
@@ -66,9 +70,21 @@ class ManualLoop:
             response = self.pi_runner.run_task(route.session_name, decision.text)
         except Exception as error:  # pi-agent failures should surface without crashing the loop
             message = str(error)
-            speak_best_effort(self.tts, self.speech_preparer(message).speech_text)
+            script = self.speech_preparer(message)
+            self._record_speech(script)
+            speak_best_effort(self.tts, script.speech_text)
             return ManualLoopResult(status="failed", dispatched=False, session_name=route.session_name, message=message)
 
         script = self.speech_preparer(response)
+        self._record_speech(script)
         speak_best_effort(self.tts, script.speech_text)
         return ManualLoopResult(status="complete", dispatched=True, session_name=route.session_name, message=response)
+
+    def _record_speech(self, script: SpeechScript) -> None:
+        log = getattr(self.pi_runner, "last_task_log", None)
+        if log is None or not hasattr(log, "record_speech"):
+            return
+        log.record_speech(script)
+        store = getattr(self.pi_runner, "task_log_store", None)
+        if store is not None:
+            store.save(log)
