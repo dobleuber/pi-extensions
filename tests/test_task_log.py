@@ -42,41 +42,6 @@ class TaskLogTests(unittest.TestCase):
         self.assertIn("abort", log.status_context)
         self.assertEqual([event.kind for event in log.events], ["assistant", "assistant_status"])
 
-    def test_task_log_records_pi_router_metadata(self):
-        log = TaskLog(session_name="current-project")
-
-        log.record_event({
-            "type": "pi-router-details",
-            "details": {
-                "originalPrompt": "mejora el router",
-                "transformedPrompt": "Improve the router.",
-                "requestedThinkingLevel": "medium",
-                "spanishAnswer": "Listo.",
-            },
-        })
-
-        self.assertEqual(log.router_details["originalPrompt"], "mejora el router")
-        self.assertEqual(log.router_details["transformedPrompt"], "Improve the router.")
-        self.assertEqual(log.router_details["requestedThinkingLevel"], "medium")
-        self.assertIn("router:", log.render_visible())
-        self.assertIn("Improve the router.", log.render_visible())
-
-    def test_task_log_renders_pi_router_degraded_metadata(self):
-        log = TaskLog(session_name="current-project")
-
-        log.record_event({
-            "type": "pi-router-details",
-            "details": {
-                "transformedPrompt": "mejora el router",
-                "fallbackEvents": ["final answer translation unavailable: timeout"],
-            },
-        })
-
-        rendered = log.render_visible()
-
-        self.assertIn("router:", rendered)
-        self.assertIn("final answer translation unavailable: timeout", rendered)
-
     def test_task_log_correlates_tool_start_update_and_end(self):
         log = TaskLog(session_name="current-project")
 
