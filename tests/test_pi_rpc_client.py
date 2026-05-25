@@ -80,6 +80,19 @@ class PiRpcClientTests(unittest.TestCase):
         self.assertEqual(len(events), 2)
         self.assertEqual(client.collected_text, "Hecho")
 
+    def test_stream_until_agent_end_prefers_final_message_end_text(self):
+        process = FakeProcess([
+            json.dumps({"type": "message_update", "assistantMessageEvent": {"type": "text_delta", "delta": "It's 10:42."}}) + "\n",
+            json.dumps({"type": "message_end", "message": {"role": "assistant", "content": [{"type": "text", "text": "Son las diez cuarenta y dos."}]}}) + "\n",
+            json.dumps({"type": "agent_end"}) + "\n",
+        ])
+        client = PiRpcClient(process_factory=lambda _: process)
+        client.start(["pi", "--mode", "rpc"])
+
+        list(client.stream_until_agent_end())
+
+        self.assertEqual(client.collected_text, "Son las diez cuarenta y dos.")
+
     def test_stream_until_agent_end_times_out_when_no_rpc_events_arrive(self):
         read_fd, write_fd = os.pipe()
         process = FakeProcess([])

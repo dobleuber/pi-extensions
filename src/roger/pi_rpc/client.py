@@ -117,11 +117,30 @@ class PiRpcClient:
             selector.close()
 
     def _collect_text(self, event: dict[str, Any]) -> None:
-        if event.get("type") != "message_update":
+        if event.get("type") == "message_update":
+            update = event.get("assistantMessageEvent", {})
+            if update.get("type") == "text_delta":
+                self.collected_text += update.get("delta", "")
             return
-        update = event.get("assistantMessageEvent", {})
-        if update.get("type") == "text_delta":
-            self.collected_text += update.get("delta", "")
+        if event.get("type") != "message_end":
+            return
+        message = event.get("message", {})
+        if message.get("role") != "assistant":
+            return
+        text = self._extract_text_content(message.get("content"))
+        if text.strip():
+            self.collected_text = text
+
+    def _extract_text_content(self, content: Any) -> str:
+        if isinstance(content, str):
+            return content
+        if isinstance(content, list):
+            parts = []
+            for part in content:
+                if isinstance(part, dict) and part.get("type") == "text" and isinstance(part.get("text"), str):
+                    parts.append(part["text"])
+            return "".join(parts)
+        return ""
 
     def _require_process(self) -> Any:
         if self._process is None:
