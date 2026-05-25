@@ -30,7 +30,7 @@ class RogerConfigTests(unittest.TestCase):
         self.assertEqual(config.speech.tts.speed, 1.0)
         self.assertIsNone(config.speech.tts.split_pattern)
         self.assertTrue(config.speech.tts.local_files_only)
-        self.assertFalse(config.speech.naturalization.enabled)
+        self.assertTrue(config.speech.naturalization.enabled)
         self.assertEqual(config.speech.naturalization.model, "gemma4")
         self.assertEqual(config.speech.naturalization.base_url, "http://127.0.0.1:11434/v1")
         self.assertEqual(config.speech.naturalization.timeout_seconds, 2.0)

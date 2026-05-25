@@ -83,7 +83,10 @@ class UiAndSummaryTests(unittest.TestCase):
         self.assertEqual(script.speech_text, "Son las diez y treinta de la mañana.")
         self.assertEqual(script.source, "gemma")
         self.assertEqual(calls[0][0]["model"], "gemma4")
-        self.assertIn("solo para TTS", calls[0][0]["messages"][0]["content"])
+        system_prompt = calls[0][0]["messages"][0]["content"]
+        self.assertIn("solo para TTS", system_prompt)
+        self.assertIn("responder en español", system_prompt)
+        self.assertIn("excepto anglicismos", system_prompt)
         self.assertIn("Son las **10:30 am**", calls[0][0]["messages"][1]["content"])
         self.assertEqual(calls[0][1], 1.5)
 
@@ -110,6 +113,19 @@ class UiAndSummaryTests(unittest.TestCase):
         self.assertEqual(script.source, "fallback")
         self.assertIn("invalid", script.degradation_reason)
         self.assertIn("dóker", script.speech_text)
+
+    def test_gemma_naturalizer_rejects_chat_template_echo_and_falls_back(self):
+        naturalizer = GemmaSpeechNaturalizer(
+            complete=lambda payload, timeout: {
+                "choices": [{"message": {"content": "Son las **10:30 am**<|im_end|>\n<|im_start|>assistant"}}]
+            },
+        )
+
+        script = naturalizer.naturalize("Son las **10:30 am**")
+
+        self.assertEqual(script.source, "fallback")
+        self.assertIn("invalid", script.degradation_reason)
+        self.assertEqual(script.speech_text, "Son las diez y treinta de la mañana")
 
 
 if __name__ == "__main__":

@@ -43,7 +43,7 @@ Default speech profile:
 | TTS | Kokoro `hexgrad/Kokoro-82M`, `ef_dora`, CUDA |
 | Playback | `pw-play` |
 
-Roger keeps a strict split between written output and spoken output. Preview, overlay, CLI, task logs, and retry/debug context keep the canonical text exactly as pi produced it. Only the TTS input is converted to a speech script. For example, Roger may show `Son las **10:30 am**. Revisa el README en GitHub.` while speaking “Son las diez y treinta de la mañana. Revisa el ridmi en guit jab.”
+Roger keeps a strict split between written output and spoken output. Preview, overlay, CLI, task logs, and retry/debug context keep the canonical text exactly as pi produced it. Only the TTS input is converted to a speech script. Spoken prose must be Spanish except for technical Anglicisms, product names, commands, paths, and code identifiers. For example, Roger may show `Son las **10:30 am**. Revisa el README en GitHub.` while speaking “Son las diez y treinta de la mañana. Revisa el ridmi en guit jab.”
 
 Kokoro prosody controls are limited to what the local API supports: voice, comma-separated voice blends when assets are available, speed, and split pattern. Roger does not claim direct Kokoro emotion/tone/style support; style profiles are implemented through phrasing and supported speed/voice settings.
 

@@ -28,7 +28,7 @@ Kokoro 0.9.4 on this system exposes `voice`, `speed`, `split_pattern`, language-
 
 ### Decision: Separate display text from speech text
 
-Roger will treat visible output and TTS input as different representations. The display text remains canonical. A new speech-script step receives the display text plus a purpose such as completion, failure, clarification, goodbye, or status, and returns TTS-ready Spanish.
+Roger will treat visible output and TTS input as different representations. The display text remains canonical. A new speech-script step receives the display text plus a purpose such as completion, failure, clarification, goodbye, or status, and returns TTS-ready Spanish. Spoken prose must be Spanish except for unavoidable technical anglicisms, product names, commands, paths, and code identifiers.
 
 Alternatives considered:
 

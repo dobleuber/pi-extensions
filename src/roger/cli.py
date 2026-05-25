@@ -469,7 +469,9 @@ def _run_typed_task(args, config: RogerConfig, registry: SessionRegistry, depend
 def _warn_speech_degradation(feedback, script) -> None:
     if not getattr(script, "degradation_reason", ""):
         return
-    feedback.completed("speech_degraded", f"Spoken output degraded: {script.degradation_reason}")
+    warn = getattr(feedback, "speech_degraded", None)
+    if warn is not None:
+        warn(f"Spoken output degraded: {script.degradation_reason}")
 
 
 def _record_speech_log(runner, script) -> None:

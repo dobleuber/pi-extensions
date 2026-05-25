@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Separate display text and speech text
-Roger SHALL preserve canonical written output for user-visible text while generating a separate speech-only script for TTS.
+Roger SHALL preserve canonical written output for user-visible text while generating a separate speech-only script for TTS. The speech-only script SHALL be Spanish prose except for technical anglicisms that are intentionally preserved or pronunciation-normalized.
 
 #### Scenario: Markdown result spoken naturally
 - **WHEN** Roger receives display text containing Markdown such as `son las **10:30 am**`
@@ -12,6 +12,11 @@ Roger SHALL preserve canonical written output for user-visible text while genera
 - **WHEN** Roger receives display text containing technical terms such as `README`, `GitHub`, `JSON`, file paths, commands, or code identifiers
 - **THEN** Roger SHALL preserve those exact written tokens in visible output
 - **AND** Roger MAY rewrite only the TTS speech text for more natural pronunciation
+
+#### Scenario: Speech script language
+- **WHEN** Roger prepares a speech-only script from task output that may include English prose and technical terms
+- **THEN** Roger SHALL make the spoken prose Spanish
+- **AND** Roger SHALL only keep English words when they are technical anglicisms, product names, commands, paths, code identifiers, or pronunciation-normalized terms
 
 ### Requirement: Local Gemma speech naturalizer
 Roger SHALL use the configured local llama.cpp/Gemma profile as the preferred naturalizer for spoken summaries when available.

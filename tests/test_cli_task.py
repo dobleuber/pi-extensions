@@ -1,6 +1,7 @@
 import unittest
 
 from roger import cli
+from roger.summarization import SpeechScript
 
 
 class FakeRunner:
@@ -138,6 +139,31 @@ class CliTaskTests(unittest.TestCase):
         self.assertEqual(exit_code, 0)
         self.assertIn("Son las **10:30 am**. Revisa el README en GitHub.", output)
         self.assertEqual(speaker.spoken, ["Son las diez y treinta de la mañana Revisa el ridmi en guit jab."])
+
+    def test_task_command_routes_work_model_response_through_speech_translator(self):
+        runner = FakeRunner(response="The task is complete. I updated the README.")
+        speaker = FakeSpeaker()
+        translated_inputs = []
+
+        def create_speech_preparer(config):
+            def prepare(text):
+                translated_inputs.append(text)
+                return SpeechScript(display_text=text, speech_text="La tarea está completa. Actualicé el ridmi.", source="gemma")
+            return prepare
+
+        exit_code, output = cli.run(
+            ["task", "--session", "current-project", "corre pwd", "--no-overlay"],
+            dependencies=cli.RuntimeDependencies(
+                create_pi_runner=lambda config, registry, offline=False: runner,
+                create_tts_speaker=lambda config, no_tts=False: speaker,
+                create_speech_preparer=create_speech_preparer,
+            ),
+        )
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(translated_inputs, ["The task is complete. I updated the README."])
+        self.assertIn("The task is complete. I updated the README.", output)
+        self.assertEqual(speaker.spoken, ["La tarea está completa. Actualicé el ridmi."])
 
     def test_task_command_no_tts_mode_skips_synthesis_but_keeps_text_result(self):
         class UnexpectedSpeaker(FakeSpeaker):

@@ -49,7 +49,7 @@ class TtsConfig:
 
 @dataclass(frozen=True)
 class SpeechNaturalizationConfig:
-    enabled: bool = False
+    enabled: bool = True
     provider: str = "llama-cpp"
     model: str = "gemma4"
     base_url: str = "http://127.0.0.1:11434/v1"

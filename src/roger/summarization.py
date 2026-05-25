@@ -49,7 +49,7 @@ class GemmaSpeechNaturalizer:
     def naturalize(self, display_text: str) -> SpeechScript:
         try:
             response = self._complete(self._payload(display_text), self.timeout_seconds)
-            speech_text = self._extract_text(response)
+            speech_text = self._postprocess_output(self._clean_output(self._extract_text(response)))
             if not self._is_valid(speech_text):
                 raise ValueError("invalid naturalizer output")
             return SpeechScript(
@@ -78,6 +78,7 @@ class GemmaSpeechNaturalizer:
                     "role": "system",
                     "content": (
                         "Convierte texto visual de Roger en un guion natural en español solo para TTS. "
+                        "Debes responder en español de forma completa, excepto anglicismos técnicos inevitables. "
                         "No cambies el significado. No expliques. No uses Markdown. "
                         "Mantén comandos, rutas y código como frases legibles o resúmelos sin corromperlos. "
                         "Pronuncia anglicismos técnicos de forma natural para una voz española."
@@ -116,10 +117,25 @@ class GemmaSpeechNaturalizer:
         text = first.get("text")
         return text.strip() if isinstance(text, str) else ""
 
+    def _clean_output(self, speech_text: str) -> str:
+        cleaned = speech_text.strip()
+        for marker in ("<|im_end|>", "<|im_start|>", "<end_of_turn>", "<start_of_turn>"):
+            if marker in cleaned:
+                cleaned = cleaned.split(marker, 1)[0].strip()
+        return cleaned
+
+    def _postprocess_output(self, speech_text: str) -> str:
+        speech_text = _rewrite_anglicisms(speech_text, DEFAULT_ANGLICISM_PRONUNCIATIONS)
+        return _normalize_spacing(speech_text)
+
     def _is_valid(self, speech_text: str) -> bool:
         if not speech_text.strip():
             return False
         if len(speech_text) > 600:
+            return False
+        if any(marker in speech_text for marker in ("<|", "im_start", "im_end")):
+            return False
+        if any(markdown in speech_text for markdown in ("**", "__", "```")):
             return False
         return True
 

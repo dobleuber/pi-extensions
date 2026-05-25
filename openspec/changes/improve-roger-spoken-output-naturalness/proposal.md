@@ -6,7 +6,7 @@ Roger needs a separate speech-rendering step that turns task results into natura
 
 ## What Changes
 
-- Add a spoken-output naturalization step before TTS that converts display text into a speech-friendly Spanish script.
+- Add a spoken-output naturalization step before TTS that converts display text into a speech-friendly Spanish script; spoken prose must be Spanish except for technical anglicisms, product names, commands, paths, and code identifiers.
 - Use the local `gemma4`/llama.cpp profile as the preferred naturalizer for completed task summaries, failure summaries, clarifications, and status messages.
 - Add deterministic fallback cleanup for common formatting when Gemma/local naturalization is unavailable or times out.
 - Preserve canonical written text in preview, overlay, CLI, visible logs, and retry context; only the text sent to TTS may use pronunciation rewrites.
