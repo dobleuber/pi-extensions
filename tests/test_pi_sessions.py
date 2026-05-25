@@ -17,6 +17,16 @@ class PiSessionTests(unittest.TestCase):
         self.assertIn("/tmp/roger-sessions/current-project", command)
         self.assertEqual(manager.cwd_for("current-project"), Path("/tmp/project"))
 
+    def test_rpc_command_allows_global_pi_router_extension(self):
+        registry = SessionRegistry.default(project_dir=Path("/tmp/project"))
+        manager = PiSessionManager(registry=registry, session_dir=Path("/tmp/roger-sessions"))
+
+        command = manager.build_command("current-project", offline=False)
+
+        self.assertNotIn("--no-extensions", command)
+        self.assertNotIn("--no-prompt-templates", command)
+        self.assertEqual(manager.cwd_for("current-project"), Path("/tmp/project"))
+
     def test_offline_model_args_use_configured_provider_and_model(self):
         args = select_model_args(offline=True, provider="llama-cpp", model="gemma4")
 

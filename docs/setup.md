@@ -260,6 +260,42 @@ pi --mode rpc
 
 The implemented `PiRpcClient` can start an RPC process, send JSONL prompts, read streamed events, collect text deltas, and terminate the process.
 
+## Pi router extension
+
+The Pi router extension lives with the user's global Pi extensions:
+
+```text
+~/.pi/agent/extensions/pi-router/
+```
+
+It is an opt-in Pi-level router for Spanish-first usage. The initial default is `router:off` so normal Pi behavior is unchanged, but `/router on` and `/router off` are persisted across future Pi sessions in `~/.pi/agent/extensions/pi-router/router-state.json`. In an interactive Pi session:
+
+```text
+/router          # show router status
+/router on       # enable Spanish -> English prompt routing
+/router off      # disable routing
+/router-details  # expand/collapse latest router details
+```
+
+The default router-details shortcut is `Ctrl+Alt+R`. Avoid `Ctrl+R` because Pi uses it for session rename, avoid `Ctrl+T` because Pi uses it for thinking/tree toggles, and avoid `Ctrl+Shift+R` because the files extension uses it. If you intentionally want one of those, remap the conflicting keybinding before using it for router details.
+
+When enabled, the router uses the local llama.cpp `gemma4` endpoint at `http://127.0.0.1:11434/v1` to translate Spanish or mixed prompts into concise English work prompts, choose a `low`/`medium`/`high` thinking level, and translate final English answers back to Spanish. The selected work model remains whatever Pi has currently selected, including Stratus once credits are available; `gemma4` is only the router model unless explicitly selected as the work model. The prompt-routing call uses a single user message with few-shot JSON examples and wraps the live task in `<TASK>...</TASK>` because this is more reliable with the local Gemma/llama.cpp runtime than a separate system+user prompt. If the router model is unavailable or returns malformed output, the default fallback shows a warning, records degraded router details, and dispatches the original prompt to the work model instead of blocking the session.
+
+Single-prompt bypass is available with:
+
+```text
+@router:off envia este prompt exactamente como esta
+```
+
+Router translation may receive a concise conversation summary only to resolve references like “eso”, “lo anterior”, or “opción 2”. It must not add requirements that are not present in the latest prompt or clearly referenced from context. Router details/log metadata record the original Spanish prompt, translated English prompt, thinking level, work model, final English answer, final Spanish answer, and any fallback/degraded state.
+
+Run extension tests with:
+
+```bash
+cd ~/.pi/agent/extensions/pi-router
+npx --yes tsx --test tests/*.test.ts
+```
+
 ## llama.cpp fallback
 
 Online mode leaves pi's configured default model untouched.

@@ -163,6 +163,32 @@ class PiAgentRunnerTests(unittest.TestCase):
 
         self.assertEqual(len(calls), 1)
 
+    def test_runner_records_pi_router_metadata_from_stream(self):
+        class RouterDetailsClient(FakeClient):
+            def stream_until_agent_end(self):
+                yield {
+                    "type": "pi-router-details",
+                    "details": {
+                        "originalPrompt": "mejora el router",
+                        "transformedPrompt": "Improve the router.",
+                        "requestedThinkingLevel": "medium",
+                    },
+                }
+                yield {"type": "agent_end"}
+
+        registry = SessionRegistry.default(project_dir=Path("/tmp/project"))
+        manager = PiSessionManager(registry=registry, session_dir=Path("/tmp/sessions"))
+        runner = PiAgentRunner(
+            session_manager=manager,
+            client_factory=lambda command, cwd: RouterDetailsClient(collected_text="Listo"),
+        )
+
+        result = runner.run_task("current-project", "mejora el router")
+
+        self.assertEqual(result, "Listo")
+        self.assertEqual(runner.last_task_log.router_details["transformedPrompt"], "Improve the router.")
+        self.assertEqual(runner.last_task_log.router_details["requestedThinkingLevel"], "medium")
+
     def test_runner_records_streamed_events_in_task_log_and_observer(self):
         class StreamingClient(FakeClient):
             def stream_until_agent_end(self):

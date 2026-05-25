@@ -48,6 +48,7 @@ class TaskLog:
     completed_at: str = ""
     status_context: str = ""
     path: str = ""
+    router_details: dict[str, Any] = field(default_factory=dict)
 
     def start(self, instruction: str) -> None:
         self.status = "running"
@@ -65,6 +66,9 @@ class TaskLog:
         event_type = event.get("type", "unknown")
         if event_type == "message_update":
             self._record_message_update(event)
+            return
+        if event_type == "pi-router-details":
+            self._record_router_details(event)
             return
         if event_type.startswith("tool_execution"):
             self._record_tool_event(event_type, event)
@@ -104,6 +108,18 @@ class TaskLog:
         if self.text:
             lines.append("assistant:")
             lines.append(self.text)
+        if self.router_details:
+            lines.append("router:")
+            translated = self.router_details.get("transformedPrompt") or self.router_details.get("translatedPrompt")
+            if translated:
+                lines.append(str(translated))
+            thinking = self.router_details.get("requestedThinkingLevel")
+            if thinking:
+                lines.append(f"thinking: {thinking}")
+            fallback_events = self.router_details.get("fallbackEvents") or []
+            if isinstance(fallback_events, list):
+                for event in fallback_events:
+                    lines.append(f"router fallback: {event}")
         for tool in self.tools.values():
             output = tool.final_output or tool.partial_output
             suffix = " error" if tool.is_error else ""
@@ -113,6 +129,14 @@ class TaskLog:
             return rendered
         marker = "\n[truncated]"
         return rendered[: max(0, self.visible_limit - len(marker))] + marker
+
+    def _record_router_details(self, event: dict[str, Any]) -> None:
+        details = event.get("details") or event.get("data") or {}
+        if not isinstance(details, dict):
+            details = {"value": details}
+        self.router_details = details
+        self.entries.append("pi-router-details")
+        self._append("router_details", {"details": details})
 
     def _record_message_update(self, event: dict[str, Any]) -> None:
         update = event.get("assistantMessageEvent", {})
