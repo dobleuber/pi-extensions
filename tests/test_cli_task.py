@@ -139,7 +139,7 @@ class CliTaskTests(unittest.TestCase):
 
         self.assertEqual(exit_code, 0)
         self.assertIn("Son las **10:30 am**. Revisa el README en GitHub.", output)
-        self.assertEqual(speaker.spoken, ["Son las diez y treinta de la mañana Revisa el ridmi en guit jab."])
+        self.assertEqual(speaker.spoken, ["Son las diez y treinta de la mañana Revisa el [README](/ɹˈiːdmi/) en [GitHub](/ɡˈɪthʌb/)."])
 
     def test_task_command_sets_speech_metadata_flag_only_when_tts_enabled(self):
         runner = FakeRunner()
@@ -233,7 +233,7 @@ class CliTaskTests(unittest.TestCase):
 
         self.assertEqual(exit_code, 0)
         self.assertIn("spoken: yes", output)
-        self.assertEqual(speaker.spoken, ["Abrí el ridmi en guit jab"])
+        self.assertEqual(speaker.spoken, ["Abrí el [README](/ɹˈiːdmi/) en [GitHub](/ɡˈɪthʌb/)"])
 
     def test_task_command_keeps_complete_status_when_tts_fails(self):
         class FailingSpeaker:

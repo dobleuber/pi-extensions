@@ -103,7 +103,7 @@ class ManualLoopTests(unittest.TestCase):
         result = loop.run_transcription("corre los tests")
 
         self.assertEqual(result.message, "Son las **10:30 am**. Revisa el README en GitHub.")
-        self.assertEqual(tts.spoken, ["Son las diez y treinta de la mañana Revisa el ridmi en guit jab."])
+        self.assertEqual(tts.spoken, ["Son las diez y treinta de la mañana Revisa el [README](/ɹˈiːdmi/) en [GitHub](/ɡˈɪthʌb/)."])
 
     def test_manual_loop_records_speech_text_for_daemon_debugging(self):
         from roger.ui.logs import TaskLog

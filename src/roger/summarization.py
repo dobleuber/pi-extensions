@@ -6,18 +6,18 @@ import re
 
 
 DEFAULT_ANGLICISM_PRONUNCIATIONS: dict[str, str] = {
-    "GitHub": "guit jab",
-    "pull request": "pul ricuest",
-    "README": "ridmi",
-    "API": "ei pi ai",
-    "JSON": "yéison",
-    "Docker": "dóker",
-    "commit": "cómit",
-    "branch": "branch",
-    "fork": "fork",
-    "login": "login",
-    "token": "tóken",
-    "repo": "repo",
+    "GitHub": "/ɡˈɪthʌb/",
+    "pull request": "/pˈʊl ɹɪkwˈɛst/",
+    "README": "/ɹˈiːdmi/",
+    "API": "/ˌeɪ piː ˈaɪ/",
+    "JSON": "/ˈdʒeɪsən/",
+    "Docker": "/dˈɑkɚ/",
+    "commit": "/kəmˈɪt/",
+    "branch": "/bɹˈæntʃ/",
+    "fork": "/fˈɔɹk/",
+    "login": "/lˈɑɡɪn/",
+    "token": "/tˈoʊkən/",
+    "repo": "/ɹˈiːpoʊ/",
 }
 
 
@@ -58,7 +58,7 @@ def parse_speech_response(text: str) -> SpeechScript:
         metadata["speech_language"] = speech_language
     return SpeechScript(
         display_text=display_text,
-        speech_text=speech_text,
+        speech_text=_rewrite_anglicisms(speech_text, DEFAULT_ANGLICISM_PRONUNCIATIONS),
         source=speech_source if isinstance(speech_source, str) and speech_source else "pi-router",
         metadata=metadata,
     )
@@ -98,7 +98,7 @@ def fallback_speech_text(
 
 def _rewrite_markdown(text: str) -> str:
     text = re.sub(r"`([^`]+)`", r"\1", text)
-    text = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", r"\1", text)
+    text = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", lambda match: match.group(0) if _is_kokoro_pronunciation_url(match.group(2)) else match.group(1), text)
     text = re.sub(r"(?m)^\s{0,3}#{1,6}\s+", "", text)
     text = re.sub(r"(?m)^\s*[-*+]\s+", "", text)
     text = re.sub(r"(?m)^\s*\d+[.)]\s+", "", text)
@@ -196,11 +196,33 @@ _SPANISH_NUMBERS = {
 
 
 def _rewrite_anglicisms(text: str, pronunciations: dict[str, str]) -> str:
-    result = text
+    protected: list[str] = []
+
+    def protect(match: re.Match[str]) -> str:
+        protected.append(match.group(0))
+        return f"@@ROGER_KOKORO_PRON_{len(protected) - 1}@@"
+
+    result = re.sub(r"\[[^\]]+\]\(/[^)]+/\)", protect, text)
     for term in sorted(pronunciations, key=len, reverse=True):
         pronunciation = pronunciations[term]
-        result = re.sub(rf"(?<![\w/.-]){re.escape(term)}(?![\w/-])", pronunciation, result, flags=re.IGNORECASE)
+        result = re.sub(
+            rf"(?<![\w/.[-]){re.escape(term)}(?![\w/\]-])",
+            lambda match: _kokoro_pronunciation_markup(match.group(0), pronunciation),
+            result,
+            flags=re.IGNORECASE,
+        )
+    for index, original in enumerate(protected):
+        result = result.replace(f"@@ROGER_KOKORO_PRON_{index}@@", original)
     return result
+
+
+def _kokoro_pronunciation_markup(term: str, pronunciation: str) -> str:
+    phonemes = pronunciation if _is_kokoro_pronunciation_url(pronunciation) else f"/{pronunciation.strip('/')}/"
+    return f"[{term}]({phonemes})"
+
+
+def _is_kokoro_pronunciation_url(value: str) -> bool:
+    return value.startswith("/") and value.endswith("/") and len(value) > 2
 
 
 def _normalize_spacing(text: str) -> str:

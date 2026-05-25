@@ -52,24 +52,30 @@ class UiAndSummaryTests(unittest.TestCase):
         self.assertEqual(script.display_text, display)
         self.assertNotIn("**", script.speech_text)
         self.assertIn("diez y treinta de la mañana", script.speech_text)
-        self.assertIn("ridmi", script.speech_text)
-        self.assertIn("pul ricuest", script.speech_text)
-        self.assertIn("guit jab", script.speech_text)
+        self.assertIn("[README](/ɹˈiːdmi/)", script.speech_text)
+        self.assertIn("[pull request](/pˈʊl ɹɪkwˈɛst/)", script.speech_text)
+        self.assertIn("[GitHub](/ɡˈɪthʌb/)", script.speech_text)
         self.assertEqual(script.source, "fallback")
 
     def test_prepare_speech_script_accepts_configurable_anglicisms(self):
-        script = prepare_speech_script("Ejecuta FooBar", anglicisms={"FooBar": "fu bar"})
+        script = prepare_speech_script("Ejecuta FooBar", anglicisms={"FooBar": "/fˈu bɑɹ/"})
 
         self.assertEqual(script.display_text, "Ejecuta FooBar")
-        self.assertEqual(script.speech_text, "Ejecuta fu bar")
+        self.assertEqual(script.speech_text, "Ejecuta [FooBar](/fˈu bɑɹ/)")
+
+    def test_prepare_speech_script_does_not_double_apply_kokoro_markup(self):
+        script = prepare_speech_script("Revisa [README](/ɹˈiːdmi/) en GitHub")
+
+        self.assertEqual(script.speech_text.count("[README](/ɹˈiːdmi/)"), 1)
+        self.assertIn("[GitHub](/ɡˈɪthʌb/)", script.speech_text)
 
     def test_parse_structured_speech_response_keeps_display_and_speech_separate(self):
-        payload = '{"display_text":"It is 8:39.","speech_text":"Son las ocho treinta y nueve.","speech_language":"es","speech_source":"pi-router"}'
+        payload = '{"display_text":"It is 8:39 in README.","speech_text":"Son las ocho treinta y nueve en README.","speech_language":"es","speech_source":"pi-router"}'
 
         script = parse_speech_response(payload)
 
-        self.assertEqual(script.display_text, "It is 8:39.")
-        self.assertEqual(script.speech_text, "Son las ocho treinta y nueve.")
+        self.assertEqual(script.display_text, "It is 8:39 in README.")
+        self.assertEqual(script.speech_text, "Son las ocho treinta y nueve en [README](/ɹˈiːdmi/).")
         self.assertEqual(script.source, "pi-router")
         self.assertEqual(script.metadata["speech_language"], "es")
 
