@@ -141,6 +141,17 @@ class UiAndSummaryTests(unittest.TestCase):
         self.assertNotEqual(script.speech_text, text)
         self.assertEqual(script.speech_text, "No pude preparar una respuesta hablada en español.")
 
+    def test_gemma_naturalizer_rejects_partial_english_with_curly_apostrophe(self):
+        naturalizer = GemmaSpeechNaturalizer(
+            complete=lambda payload, timeout: {"choices": [{"message": {"content": "It’s 2026-05-24."}}]},
+        )
+
+        script = naturalizer.naturalize("It’s 2026-05-24 20:55:39 -05.")
+
+        self.assertEqual(script.source, "fallback")
+        self.assertIn("invalid", script.degradation_reason)
+        self.assertEqual(script.speech_text, "No pude preparar una respuesta hablada en español.")
+
 
 if __name__ == "__main__":
     unittest.main()

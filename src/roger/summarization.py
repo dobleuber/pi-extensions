@@ -147,6 +147,8 @@ class GemmaSpeechNaturalizer:
             return False
         if any(markdown in speech_text for markdown in ("**", "__", "```")):
             return False
+        if _looks_like_english_for_tts(speech_text):
+            return False
         if _looks_like_unchanged_english(speech_text, display_text):
             return False
         return True
@@ -318,7 +320,9 @@ def _looks_like_unchanged_english(speech_text: str, display_text: str) -> bool:
 
 
 def _normalize_for_language_check(text: str) -> str:
-    return re.sub(r"[^a-z0-9']+", " ", text.lower()).strip()
+    normalized = text.lower().replace("’", "'").replace("‘", "'")
+    normalized = normalized.replace("it's", "it is")
+    return re.sub(r"[^a-z0-9']+", " ", normalized).strip()
 
 
 def _looks_like_english_for_tts(text: str) -> bool:
@@ -327,6 +331,8 @@ def _looks_like_english_for_tts(text: str) -> bool:
         "respond",
         "again",
         "it's",
+        "it",
+        "is",
         "the",
         "task",
         "complete",
