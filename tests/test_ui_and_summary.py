@@ -127,6 +127,20 @@ class UiAndSummaryTests(unittest.TestCase):
         self.assertIn("invalid", script.degradation_reason)
         self.assertEqual(script.speech_text, "Son las diez y treinta de la mañana")
 
+    def test_gemma_naturalizer_rejects_unchanged_english_without_sending_it_to_tts(self):
+        text = "Respond again: it's eight, thirty-nine and nine zero five."
+        naturalizer = GemmaSpeechNaturalizer(
+            complete=lambda payload, timeout: {"choices": [{"message": {"content": text}}]},
+        )
+
+        script = naturalizer.naturalize(text)
+
+        self.assertEqual(script.source, "fallback")
+        self.assertIn("invalid", script.degradation_reason)
+        self.assertEqual(script.display_text, text)
+        self.assertNotEqual(script.speech_text, text)
+        self.assertEqual(script.speech_text, "No pude preparar una respuesta hablada en español.")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -50,7 +50,7 @@ class GemmaSpeechNaturalizer:
         try:
             response = self._complete(self._payload(display_text), self.timeout_seconds)
             speech_text = self._postprocess_output(self._clean_output(self._extract_text(response)))
-            if not self._is_valid(speech_text):
+            if not self._is_valid(speech_text, display_text):
                 raise ValueError("invalid naturalizer output")
             return SpeechScript(
                 display_text=display_text,
@@ -59,13 +59,22 @@ class GemmaSpeechNaturalizer:
                 style=self.style,
             )
         except Exception as error:
-            return prepare_speech_script(
+            script = prepare_speech_script(
                 display_text,
                 max_chars=240,
                 style=self.style,
                 source="fallback",
                 degradation_reason=str(error),
             )
+            if _looks_like_english_for_tts(script.speech_text):
+                return SpeechScript(
+                    display_text=display_text,
+                    speech_text="No pude preparar una respuesta hablada en español.",
+                    source="fallback",
+                    style=self.style,
+                    degradation_reason=str(error),
+                )
+            return script
 
     def _payload(self, display_text: str) -> dict[str, object]:
         clipped = display_text[: self.max_input_chars]
@@ -81,7 +90,8 @@ class GemmaSpeechNaturalizer:
                         "Debes responder en español de forma completa, excepto anglicismos técnicos inevitables. "
                         "No cambies el significado. No expliques. No uses Markdown. "
                         "Mantén comandos, rutas y código como frases legibles o resúmelos sin corromperlos. "
-                        "Pronuncia anglicismos técnicos de forma natural para una voz española."
+                        "Pronuncia anglicismos técnicos de forma natural para una voz española. "
+                        "Cuando una secuencia oral contenga cero solo como separador, como 'nine zero five', no pronuncies el cero: di 'nueve cinco'."
                     ),
                 },
                 {"role": "user", "content": clipped},
@@ -128,7 +138,7 @@ class GemmaSpeechNaturalizer:
         speech_text = _rewrite_anglicisms(speech_text, DEFAULT_ANGLICISM_PRONUNCIATIONS)
         return _normalize_spacing(speech_text)
 
-    def _is_valid(self, speech_text: str) -> bool:
+    def _is_valid(self, speech_text: str, display_text: str = "") -> bool:
         if not speech_text.strip():
             return False
         if len(speech_text) > 600:
@@ -136,6 +146,8 @@ class GemmaSpeechNaturalizer:
         if any(marker in speech_text for marker in ("<|", "im_start", "im_end")):
             return False
         if any(markdown in speech_text for markdown in ("**", "__", "```")):
+            return False
+        if _looks_like_unchanged_english(speech_text, display_text):
             return False
         return True
 
@@ -278,6 +290,56 @@ _SPANISH_NUMBERS = {
     58: "cincuenta y ocho",
     59: "cincuenta y nueve",
 }
+
+
+def _looks_like_unchanged_english(speech_text: str, display_text: str) -> bool:
+    normalized_speech = _normalize_for_language_check(speech_text)
+    normalized_display = _normalize_for_language_check(display_text)
+    english_markers = {
+        "respond",
+        "again",
+        "it's",
+        "it",
+        "the",
+        "task",
+        "complete",
+        "updated",
+        "created",
+        "fixed",
+        "ran",
+        "eight",
+        "thirty",
+        "nine",
+        "zero",
+    }
+    if normalized_speech == normalized_display and any(marker in normalized_speech.split() for marker in english_markers):
+        return True
+    return False
+
+
+def _normalize_for_language_check(text: str) -> str:
+    return re.sub(r"[^a-z0-9']+", " ", text.lower()).strip()
+
+
+def _looks_like_english_for_tts(text: str) -> bool:
+    words = set(_normalize_for_language_check(text).split())
+    english_markers = {
+        "respond",
+        "again",
+        "it's",
+        "the",
+        "task",
+        "complete",
+        "updated",
+        "created",
+        "fixed",
+        "ran",
+        "eight",
+        "thirty",
+        "nine",
+        "zero",
+    }
+    return bool(words & english_markers)
 
 
 def _rewrite_anglicisms(text: str, pronunciations: dict[str, str]) -> str:
