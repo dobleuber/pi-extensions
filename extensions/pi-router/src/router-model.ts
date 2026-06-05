@@ -44,6 +44,8 @@ Rules:
 - sourceLanguage is based on the original task text, not the English translation.
 - Preserve commands, paths, identifiers, quoted strings, and error messages exactly.
 - Use conversation context only to resolve references such as "eso", "lo anterior", or "option 2".
+- If you set usedConversationContext to true, the translation must incorporate the resolved referenced content directly.
+- Do not leave unresolved placeholder phrases like "do that", "that as well", "previous task", "the above", or "lo anterior" in translation unless you also list them in unresolvedReferences.
 - Do not add requirements, constraints, or tasks that are not stated by the latest user prompt or clearly referenced from context.
 - If a reference cannot be resolved confidently, keep the prompt faithful and report it in unresolvedReferences instead of inventing intent.
 

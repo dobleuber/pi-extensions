@@ -43,7 +43,7 @@ describe("pi-router extension entrypoint", () => {
 		assert.deepEqual(inputResult, { action: "continue" });
 		assert.deepEqual(statuses, [["pi-router", "router:off"]]);
 		assert.deepEqual(notifications, [
-			"router:off routerModel:llama-cpp/gemma4 workModel:unknown",
+			"router:off routerModel:llama-cpp/gemma4-12b workModel:unknown",
 		]);
 	});
 

@@ -41,7 +41,7 @@ export const DEFAULT_ROUTER_CONFIG: RouterConfig = {
 	state: "off",
 	routerModel: {
 		provider: "llama-cpp",
-		model: "gemma4",
+		model: "gemma4-12b",
 		baseUrl: "http://127.0.0.1:11434/v1",
 		timeoutMs: 5000,
 		fallbackMode: "passthrough-with-warning",

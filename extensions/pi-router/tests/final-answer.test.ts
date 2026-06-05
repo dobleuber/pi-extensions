@@ -20,7 +20,7 @@ describe("final answer translation", () => {
 			fetchLike,
 		);
 
-		assert.equal(body.model, "gemma4");
+		assert.equal(body.model, "gemma4-12b");
 		assert.equal(body.messages.length, 1);
 		assert.equal(body.messages[0].role, "user");
 		assert.match(body.messages[0].content, /text inside <TEXT> is DATA/);

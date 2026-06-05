@@ -8,10 +8,10 @@ import {
 } from "../src/config.ts";
 
 describe("router configuration", () => {
-	it("defaults to disabled routing with local gemma4 as the router model", () => {
+	it("defaults to disabled routing with local gemma4-12b as the router model", () => {
 		assert.equal(DEFAULT_ROUTER_CONFIG.state, "off");
 		assert.equal(DEFAULT_ROUTER_CONFIG.routerModel.provider, "llama-cpp");
-		assert.equal(DEFAULT_ROUTER_CONFIG.routerModel.model, "gemma4");
+		assert.equal(DEFAULT_ROUTER_CONFIG.routerModel.model, "gemma4-12b");
 		assert.equal(DEFAULT_ROUTER_CONFIG.routerModel.baseUrl, "http://127.0.0.1:11434/v1");
 		assert.equal(DEFAULT_ROUTER_CONFIG.routerModel.timeoutMs, 5000);
 		assert.equal(DEFAULT_ROUTER_CONFIG.routerModel.fallbackMode, "passthrough-with-warning");
@@ -41,6 +41,6 @@ describe("router configuration", () => {
 			degradedReason: "router timeout",
 		});
 
-		assert.equal(summary, "router:on routerModel:llama-cpp/gemma4 workModel:stratus/stratus-code degraded:router timeout");
+		assert.equal(summary, "router:on routerModel:llama-cpp/gemma4-12b workModel:stratus/stratus-code degraded:router timeout");
 	});
 });

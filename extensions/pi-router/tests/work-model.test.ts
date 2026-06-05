@@ -14,7 +14,7 @@ describe("work-model policy", () => {
 
 		assert.deepEqual(workModel, { provider: "stratus", model: "stratus-code" });
 		assert.equal(DEFAULT_ROUTER_CONFIG.routerModel.provider, "llama-cpp");
-		assert.equal(DEFAULT_ROUTER_CONFIG.routerModel.model, "gemma4");
+		assert.equal(DEFAULT_ROUTER_CONFIG.routerModel.model, "gemma4-12b");
 	});
 
 	it("formats default, Stratus, and changed work models without changing router policy", () => {

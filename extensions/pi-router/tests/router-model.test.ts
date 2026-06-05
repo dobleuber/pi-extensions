@@ -4,7 +4,7 @@ import { DEFAULT_ROUTER_CONFIG } from "../src/config.ts";
 import { createRouterMetadata, routePromptWithModel } from "../src/router-model.ts";
 
 describe("local router model", () => {
-	it("calls llama.cpp gemma4 to translate a Spanish prompt into an English work prompt", async () => {
+	it("calls llama.cpp gemma4-12b to translate a Spanish prompt into an English work prompt", async () => {
 		const calls: Array<{ url: string; body: any }> = [];
 		const fetchLike = async (url: string, init: any) => {
 			calls.push({ url, body: JSON.parse(init.body) });
@@ -28,7 +28,7 @@ describe("local router model", () => {
 		const result = await routePromptWithModel("mejora el router de Pi", DEFAULT_ROUTER_CONFIG.routerModel, fetchLike);
 
 		assert.equal(calls[0].url, "http://127.0.0.1:11434/v1/chat/completions");
-		assert.equal(calls[0].body.model, "gemma4");
+		assert.equal(calls[0].body.model, "gemma4-12b");
 		assert.equal(calls[0].body.messages.length, 1);
 		assert.equal(calls[0].body.messages[0].role, "user");
 		assert.match(calls[0].body.messages[0].content, /<TASK>mejora el router de Pi<\/TASK>/);
@@ -71,6 +71,7 @@ describe("local router model", () => {
 
 		assert.equal(body.messages.length, 1);
 		assert.match(body.messages[0].content, /Use conversation context only to resolve references/);
+		assert.match(body.messages[0].content, /translation must incorporate the resolved referenced content directly/);
 		assert.match(body.messages[0].content, /Conversation context for reference resolution only:\nThe current topic is adding a router details toggle\./);
 		assert.match(body.messages[0].content, /<TASK>agrega eso al router de Pi<\/TASK>/);
 		assert.equal(result.usedConversationContext, true);
@@ -159,7 +160,7 @@ describe("local router model", () => {
 			originalPrompt: "mejora el router",
 			transformedPrompt: "Improve the router.",
 			sourceLanguage: "es",
-			routerModel: "llama-cpp/gemma4",
+			routerModel: "llama-cpp/gemma4-12b",
 			requestedThinkingLevel: "medium",
 			fallback: "fallback",
 		});
