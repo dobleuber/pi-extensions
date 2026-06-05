@@ -57,6 +57,76 @@ describe("final answer translation", () => {
 		assert.equal(result.spanishAnswer, "Listo.");
 	});
 
+	it("falls back visibly when translation returns untranslated prose", async () => {
+		const result = await translateFinalAnswerToSpanish(
+			"Done. The changes are applied.",
+			DEFAULT_ROUTER_CONFIG.routerModel,
+			async () => ({
+				ok: true,
+				json: async () => ({ choices: [{ message: { content: "Done. The changes are applied." } }] }),
+			}),
+		);
+
+		assert.equal(result.spanishAnswer, "Done. The changes are applied.");
+		assert.equal(result.degradedReason, "final answer translation unavailable: untranslated output");
+	});
+
+	it("accepts final answers that are already Spanish", async () => {
+		const spanishAnswer = "Perfecto. Ahora prueba una interacción real y revisa si aparece el warning.";
+		const result = await translateFinalAnswerToSpanish(
+			spanishAnswer,
+			DEFAULT_ROUTER_CONFIG.routerModel,
+			async () => ({
+				ok: true,
+				json: async () => ({ choices: [{ message: { content: spanishAnswer } }] }),
+			}),
+		);
+
+		assert.equal(result.spanishAnswer, spanishAnswer);
+		assert.equal(result.degradedReason, undefined);
+	});
+
+	it("accepts preserved technical content inside otherwise translated answers", async () => {
+		const englishAnswer = `Added package script:
+
+\`\`\`json
+"test:openrouter": "bash scripts/openrouter-provider-smoke.sh"
+\`\`\`
+
+Usage:
+
+\`\`\`bash
+pnpm run test:openrouter
+\`\`\`
+
+Validated \`package.json\` parses and the smoke script syntax is OK.`;
+		const spanishAnswer = `Script de package agregado:
+
+\`\`\`json
+"test:openrouter": "bash scripts/openrouter-provider-smoke.sh"
+\`\`\`
+
+Uso:
+
+\`\`\`bash
+pnpm run test:openrouter
+\`\`\`
+
+Se validó que \`package.json\` parsea y que la sintaxis del smoke script está bien.`;
+
+		const result = await translateFinalAnswerToSpanish(
+			englishAnswer,
+			DEFAULT_ROUTER_CONFIG.routerModel,
+			async () => ({
+				ok: true,
+				json: async () => ({ choices: [{ message: { content: spanishAnswer } }] }),
+			}),
+		);
+
+		assert.equal(result.spanishAnswer, spanishAnswer);
+		assert.equal(result.degradedReason, undefined);
+	});
+
 	it("falls back visibly when translation fails or times out", async () => {
 		const result = await translateFinalAnswerToSpanish(
 			"Done.",

@@ -62,6 +62,9 @@ export async function translateFinalAnswerToSpanish(
 		if (!spanishAnswer) {
 			return fallback(englishAnswer, "final answer translation unavailable: empty response after cleanup");
 		}
+		if (looksUntranslated(englishAnswer, spanishAnswer)) {
+			return fallback(englishAnswer, "final answer translation unavailable: untranslated output");
+		}
 		return { englishAnswer, spanishAnswer };
 	} catch (error) {
 		return fallback(englishAnswer, `final answer translation unavailable: ${errorMessage(error)}`);
@@ -89,6 +92,47 @@ function cleanTranslatedAnswer(text: string): string {
 		cleaned = cleaned.split("<|", 1)[0];
 	}
 	return cleaned.trim();
+}
+
+function looksUntranslated(englishAnswer: string, spanishAnswer: string): boolean {
+	const englishProse = proseForLanguageCheck(englishAnswer);
+	const spanishProse = proseForLanguageCheck(spanishAnswer);
+	if (!englishProse || !spanishProse) {
+		return false;
+	}
+	if (normalizeForLanguageCheck(englishProse) === normalizeForLanguageCheck(spanishProse)) {
+		return hasEnglishSignal(englishProse) && !hasSpanishSignal(englishProse);
+	}
+	return hasEnglishSignal(spanishProse) && !hasSpanishSignal(spanishProse);
+}
+
+function proseForLanguageCheck(text: string): string {
+	return text
+		.replace(/```[\s\S]*?```/g, " ")
+		.replace(/`[^`]*`/g, " ")
+		.replace(/https?:\/\/\S+/g, " ")
+		.replace(/(?:^|\s)(?:[./~]?[-\w]+\/)+[-\w.]+/g, " ")
+		.split("\n")
+		.map((line) => line.trim())
+		.filter((line) => line.length > 2)
+		.filter((line) => !/^[\[{].*[\]}],?$/.test(line))
+		.join(" ")
+		.replace(/\b[A-Z][A-Z0-9_]{2,}\b/g, " ")
+		.replace(/\s+/g, " ")
+		.trim();
+}
+
+function normalizeForLanguageCheck(text: string): string {
+	return text.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").replace(/\s+/g, " ").trim();
+}
+
+function hasEnglishSignal(text: string): boolean {
+	return /\b(the|changes?|applied|added|updated|validated|usage|run|done|failed|command|script|syntax|status|current|before|after|with|without|should|would|could|now)\b/i.test(text);
+}
+
+function hasSpanishSignal(text: string): boolean {
+	return /\b(el|la|los|las|un|una|unos|unas|de|del|que|con|sin|para|por|est[áa]|est[áa]n|listo|hecho|agregado|actualizado|validado|valid[óo]|ejecuta|uso|comando|fall[óo]|ahora|antes|despu[eé]s)\b/i.test(text)
+		|| /[áéíóúñ¿¡]/i.test(text);
 }
 
 function fallback(englishAnswer: string, degradedReason: string): FinalAnswerTranslationResult {
