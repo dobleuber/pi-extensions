@@ -39,7 +39,145 @@ function runtimeFor(content: string, capture?: { model?: any; context?: any; opt
 	};
 }
 
+function scriptedRuntime(responses: Array<string | { sourceLanguage: string; translation: string } | Error>) {
+	const calls: Array<{ repair: boolean; text: string }> = [];
+	const runtime = runtimeFor("");
+	runtime.complete = (async (_model: any, context: any) => {
+		const prompt: string = context.messages[0].content[0].text;
+		const repair = prompt.includes("---BEGIN_PI_ROUTER_REPAIR_TEXT---");
+		const kind = repair ? "REPAIR" : "TRANSLATION";
+		const begin = `---BEGIN_PI_ROUTER_${kind}_TEXT---`;
+		const end = `---END_PI_ROUTER_${kind}_TEXT---`;
+		const text = prompt.slice(prompt.lastIndexOf(begin) + begin.length + 1, prompt.lastIndexOf(end) - 1);
+		calls.push({ repair, text });
+		const response = responses[calls.length - 1];
+		if (response instanceof Error) throw response;
+		if (response === undefined) throw new Error("Unexpected extra model call");
+		return {
+			role: "assistant", stopReason: "stop", timestamp: Date.now(),
+			content: [{ type: "text", text: typeof response === "string" ? response : JSON.stringify(response) }],
+		} as any;
+	}) as any;
+	return { runtime, calls };
+}
+
 describe("remote final-answer translation", () => {
+	for (const normalization of ["NFC", "NFD"] as const) {
+		it(`does not mistake accented Spanish for English (${normalization})`, async () => {
+			const spanish = "Así funciona. Así termina el proceso asíncrono.".normalize(normalization);
+			const { runtime, calls } = scriptedRuntime([{ sourceLanguage: "en", translation: spanish }]);
+			const result = await translateFinalAnswerToSpanish("This is how the asynchronous process works and ends.", TEST_ROUTER_CONFIG, runtime);
+			assert.equal(result.spanishAnswer, spanish);
+			assert.equal(result.degradedReason, undefined);
+			assert.equal(calls.length, 1);
+		});
+	}
+
+	it("excludes preserved logs from residual-English repair", async () => {
+		const log = "ERROR the service is not ready\n    at example (/tmp/demo.ts:1:1)";
+		const { runtime, calls } = scriptedRuntime([{ sourceLanguage: "en", translation: "Listo." }]);
+		const result = await translateFinalAnswerToSpanish(`Done.\n\n${log}`, TEST_ROUTER_CONFIG, runtime);
+		assert.equal(result.spanishAnswer, `Listo.\n\n${log}`);
+		assert.equal(result.degradedReason, undefined);
+		assert.equal(calls.length, 1);
+	});
+
+	it("translates ordinary Markdown tables instead of leaving them for aggregate repair", async () => {
+		const input = "| Feature | Status |\n|---|---|\n| Works with `foo` | Ready |";
+		const spanish = "| Función | Estado |\n|---|---|\n| Funciona con __PI_ROUTER_INLINE_0__ | Listo |";
+		const { runtime, calls } = scriptedRuntime([{ sourceLanguage: "en", translation: spanish }]);
+		const result = await translateFinalAnswerToSpanish(input, TEST_ROUTER_CONFIG, runtime);
+		assert.equal(result.spanishAnswer, "| Función | Estado |\n|---|---|\n| Funciona con `foo` | Listo |");
+		assert.equal(result.degradedReason, undefined);
+		assert.equal(calls.length, 1);
+		assert.equal(calls[0].repair, false);
+	});
+
+	it("repairs only the affected prose section using strict JSON", async () => {
+		const { runtime, calls } = scriptedRuntime([
+			{ sourceLanguage: "en", translation: "Listo." },
+			{ sourceLanguage: "en", translation: "El router is ready." },
+			{ sourceLanguage: "mixed", translation: "El router está listo." },
+		]);
+		const result = await translateFinalAnswerToSpanish("Done.\n\nThe router is ready.", TEST_ROUTER_CONFIG, runtime);
+		assert.equal(result.spanishAnswer, "Listo.\n\nEl router está listo.");
+		assert.equal(result.degradedReason, undefined);
+		assert.deepEqual(calls.map((call) => call.repair), [false, false, true]);
+		assert.equal(calls[2].text, "El router is ready.");
+	});
+
+	for (const [label, reply, reason] of [
+		["plain text", "El router está listo.", "invalid translation JSON"],
+		["missing language metadata", '{"translation":"Listo."}', "invalid translation payload"],
+		["extra metadata", '{"translation":"Listo.","sourceLanguage":"es","extra":true}', "invalid translation payload"],
+		["still-English output", '{"translation":"El router is ready.","sourceLanguage":"es"}', "residual English after repair"],
+	] as const) {
+		it(`retains other translations when repair returns ${label}`, async () => {
+			const { runtime, calls } = scriptedRuntime([
+				{ sourceLanguage: "en", translation: "Listo." },
+				{ sourceLanguage: "en", translation: "El router is ready." },
+				reply,
+				{ sourceLanguage: "en", translation: "Continúa." },
+			]);
+			const result = await translateFinalAnswerToSpanish("Done.\n\nThe router is ready.\n\nContinue.", TEST_ROUTER_CONFIG, runtime);
+			assert.equal(result.spanishAnswer, "Listo.\n\nEl router is ready.\n\nContinúa.");
+			assert.match(result.degradedReason ?? "", /chunk 2:/);
+			assert.ok(result.degradedReason?.includes(reason));
+			assert.equal(calls.length, 4);
+		});
+	}
+
+	it("retains safe partial text and literals when repair corrupts a placeholder", async () => {
+		const { runtime } = scriptedRuntime([
+			{ sourceLanguage: "en", translation: "El router is ready: __PI_ROUTER_INLINE_0__." },
+			{ sourceLanguage: "mixed", translation: "El router está listo." },
+		]);
+		const result = await translateFinalAnswerToSpanish("The router is ready: `foo`.", TEST_ROUTER_CONFIG, runtime);
+		assert.equal(result.spanishAnswer, "El router is ready: `foo`.");
+		assert.match(result.degradedReason ?? "", /placeholder mismatch/);
+	});
+
+	it("bounds repair requests when a translation expands beyond the chunk size", async () => {
+		const expanded = "Así funciona el proceso. ".repeat(130) + "The router is ready.";
+		const { runtime, calls } = scriptedRuntime([
+			{ sourceLanguage: "en", translation: expanded },
+			{ sourceLanguage: "mixed", translation: "El resto funciona." },
+		]);
+		const result = await translateFinalAnswerToSpanish("The process works. The router is ready.", TEST_ROUTER_CONFIG, runtime);
+		assert.equal(result.degradedReason, undefined);
+		assert.ok(result.spanishAnswer.startsWith(expanded.slice(0,500)));
+		assert.equal(calls.length, 2);
+		assert.ok(calls[1].repair);
+		assert.ok(calls[1].text.length <= 2000);
+	});
+
+	it("does not cut a protected placeholder at an artificial chunk boundary", async () => {
+		const input = `${"x".repeat(1990)} \`code\` is ready.`;
+		const { runtime, calls } = scriptedRuntime([
+			{ sourceLanguage: "en", translation: "Primero." },
+			{ sourceLanguage: "en", translation: "Código __PI_ROUTER_INLINE_0__." },
+		]);
+		const result = await translateFinalAnswerToSpanish(input, TEST_ROUTER_CONFIG, runtime);
+		assert.equal(result.spanishAnswer, "Primero. Código `code`.");
+		assert.equal(result.degradedReason, undefined);
+		assert.equal(calls.length, 2);
+		assert.doesNotMatch(calls[0].text, /__PI_ROUTER/);
+		assert.equal(calls[1].text, "__PI_ROUTER_INLINE_0__ is ready.");
+	});
+
+	it("keeps successful smaller retries and their whitespace when another retry fails", async () => {
+		const input = `${"A".repeat(850)}. ${"B".repeat(200)}.`;
+		const { runtime, calls } = scriptedRuntime([
+			new Error("initial provider failure"),
+			{ sourceLanguage: "en", translation: "Primero." },
+			new Error("second retry failed"),
+		]);
+		const result = await translateFinalAnswerToSpanish(input, TEST_ROUTER_CONFIG, runtime);
+		assert.equal(result.spanishAnswer, `Primero. ${"B".repeat(200)}.`);
+		assert.match(result.degradedReason ?? "", /retry chunk 2:.*second retry failed/);
+		assert.equal(calls.length, 3);
+	});
+
 	it("does not silently accept the recorded mixed-language stress response as Spanish", async () => {
 		const answer = readFileSync(new URL("./fixtures/router-stress-answer.md", import.meta.url), "utf8");
 		let calls = 0;

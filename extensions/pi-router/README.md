@@ -6,6 +6,8 @@ The resulting task is sent to a deterministic, session-scoped work-model profile
 
 Final-answer translation masks technical content before processing prose, including mixed-language answers. The translator returns structured language metadata alongside the Spanish text; unchanged Spanish or language-neutral labels are valid, while unchanged English is reported as a fallback. Already-Spanish prose is checked by the translator rather than bypassed using a whole-answer word heuristic. Language classification remains model-based, so structurally valid output is not a guarantee of semantic accuracy. Generated mask IDs avoid literal placeholder IDs already present in the text, and restoration does not recursively expand inserted content.
 
+Residual-English checks use Unicode words and run only on translated prose, not preserved logs or code. Ordinary Markdown tables are translated with their inline code protected. Repairs operate on bounded affected sections and use the same strict JSON contract as initial translation. If a section or repair fails, its warning remains visible without discarding successful sections or smaller retries; a validated partial translation is retained rather than replaced by a failed repair. Artificial chunk boundaries preserve whitespace and do not split protected placeholders.
+
 ## Work-model profiles
 
 | Profile | Supported control | Provider/model | Thinking |

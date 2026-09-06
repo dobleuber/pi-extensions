@@ -77,24 +77,13 @@ export async function translateFinalAnswerToSpanish(
 			const translated = await translateFinalAnswerSegment(segment.text, config, runtime);
 			if (translated.degradedReason) {
 				fallbackEvents.push(translatableChunkCount > 1 ? `chunk ${chunkNumber}: ${translated.degradedReason}` : translated.degradedReason);
-				translatedSegments.push(segment.text);
-			} else {
-				translatedSegments.push(translated.spanishAnswer);
 			}
+			// A section may contain successful smaller retries or a safe partial
+			// translation. Its warning must not discard that text or other sections.
+			translatedSegments.push(translated.spanishAnswer);
 		}
 
-		let translatedText = translatedSegments.join("");
-		if (hasSignificantResidualEnglish(translatedText)) {
-			const repaired = await translateFinalAnswerChunk(translatedText, config, runtime, "repair");
-			if (repaired.degradedReason || hasSignificantResidualEnglish(repaired.spanishAnswer)) {
-				return fallback(
-					englishAnswer,
-					`final answer translation unavailable: residual English after repair${repaired.degradedReason ? `; ${repaired.degradedReason}` : ""}`,
-				);
-			}
-			translatedText = repaired.spanishAnswer;
-			fallbackEvents.length = 0;
-		}
+		const translatedText = translatedSegments.join("");
 
 		const spanishAnswer = normalizeTranslationArtifacts(preservedAnswer.restore(inlineAnswer.restore(protectedAnswer.restore(translatedText))));
 		return {
@@ -111,7 +100,7 @@ function hasSignificantResidualEnglish(text: string): boolean {
 	const visibleText = text
 		.replace(/__PI_ROUTER_[A-Z_]+_\d+__/g, " ")
 		.replace(/§P\d+§/g, " ");
-	const tokens = visibleText.toLocaleLowerCase("en").match(/[a-z]+/g) ?? [];
+	const tokens = visibleText.normalize("NFC").toLocaleLowerCase("en").match(/[\p{L}\p{M}]+/gu) ?? [];
 	const englishFunctionWords = new Set([
 		"the", "this", "that", "these", "those", "is", "are", "was", "were", "and", "but", "with", "without",
 		"for", "from", "into", "we", "you", "they", "it", "our", "your", "their", "can", "could", "should",
@@ -128,9 +117,8 @@ async function translateFinalAnswerSegment(
 	runtime: PiAiRuntime,
 ): Promise<FinalAnswerTranslationResult> {
 	const translated = await translateFinalAnswerChunk(segment, config, runtime);
-	if (!translated.degradedReason || segment.length <= FINAL_ANSWER_RETRY_CHUNK_MAX_CHARS) {
-		return translated;
-	}
+	if (!translated.degradedReason) return repairResidualEnglish(translated, config, runtime);
+	if (segment.length <= FINAL_ANSWER_RETRY_CHUNK_MAX_CHARS) return translated;
 
 	const retryChunks = splitLargeProseSegment(segment, FINAL_ANSWER_RETRY_CHUNK_MAX_CHARS);
 	if (retryChunks.length <= 1) return translated;
@@ -144,19 +132,53 @@ async function translateFinalAnswerSegment(
 			continue;
 		}
 		retryNumber += 1;
-		const retried = await translateFinalAnswerChunk(retryChunk, config, runtime);
+		const retried = await repairResidualEnglish(await translateFinalAnswerChunk(retryChunk, config, runtime), config, runtime);
 		if (retried.degradedReason) {
 			fallbackEvents.push(`retry chunk ${retryNumber}: ${retried.degradedReason}`);
-			retriedSegments.push(retryChunk);
-		} else {
-			retriedSegments.push(retried.spanishAnswer);
 		}
+		retriedSegments.push(retried.spanishAnswer);
 	}
 
 	return {
 		englishAnswer: segment,
 		spanishAnswer: retriedSegments.join(""),
 		...(fallbackEvents.length ? { degradedReason: fallbackEvents.join("; ") } : {}),
+	};
+}
+
+async function repairResidualEnglish(
+	translated: FinalAnswerTranslationResult,
+	config: RouterModelConfig,
+	runtime: PiAiRuntime,
+): Promise<FinalAnswerTranslationResult> {
+	if (translated.degradedReason || !hasSignificantResidualEnglish(translated.spanishAnswer)) return translated;
+
+	// Only inspect translated prose. Preserved logs/code never enter this path,
+	// and expansion during translation must not create an unbounded repair call.
+	const parts = splitLargeProseSegment(translated.spanishAnswer);
+	const repairedParts: string[] = [];
+	const failures: string[] = [];
+	for (const part of parts) {
+		if (!hasSignificantResidualEnglish(part)) {
+			repairedParts.push(part);
+			continue;
+		}
+		const repaired = await translateFinalAnswerChunk(part, config, runtime, "repair");
+		if (repaired.degradedReason || hasSignificantResidualEnglish(repaired.spanishAnswer)) {
+			failures.push(`final answer translation unavailable: residual English after repair${repaired.degradedReason ? `; ${repaired.degradedReason}` : ""}`);
+			repairedParts.push(part);
+		} else {
+			repairedParts.push(repaired.spanishAnswer);
+		}
+	}
+	const spanishAnswer = repairedParts.join("");
+	if (!failures.length && hasSignificantResidualEnglish(spanishAnswer)) {
+		failures.push("final answer translation unavailable: residual English after repair");
+	}
+	return {
+		...translated,
+		spanishAnswer,
+		...(failures.length ? { degradedReason: failures.join("; ") } : {}),
 	};
 }
 
@@ -230,7 +252,11 @@ function finalizeTranslatedChunk(chunk: string, content: string, mode: "translat
 	if (spanishAnswer.trim() === chunk.trim() && !allowUnchanged) {
 		return fallback(chunk, "final answer translation unavailable: untranslated output");
 	}
-	return { englishAnswer: chunk, spanishAnswer };
+	// Translation cleanup trims the payload, not the original section boundaries.
+	// Preserve separators when artificially split chunks are reassembled.
+	const leading = chunk.match(/^\s*/)?.[0] ?? "";
+	const trailing = chunk.match(/\s*$/)?.[0] ?? "";
+	return { englishAnswer: chunk, spanishAnswer: leading + spanishAnswer + trailing };
 }
 
 function splitFinalAnswerSegments(text: string): FinalAnswerSegment[] {
@@ -318,10 +344,24 @@ function splitLargeProseSegment(text: string, maxChars = FINAL_ANSWER_CHUNK_MAX_
 	while (remaining.length > maxChars) {
 		let splitAt = remaining.lastIndexOf("\n", maxChars);
 		if (splitAt < maxChars / 2) {
-			splitAt = remaining.lastIndexOf(". ", maxChars);
+			splitAt = remaining.lastIndexOf(". ", maxChars - 2);
 			if (splitAt !== -1) splitAt += 2;
 		}
-		if (splitAt < maxChars / 2) splitAt = maxChars;
+		if (splitAt < maxChars / 2) {
+			const space = remaining.lastIndexOf(" ", maxChars - 1);
+			splitAt = space >= maxChars / 2 ? space + 1 : maxChars;
+		}
+		for (const match of remaining.matchAll(/_{0,2}PI_ROUTER_[A-Z_]+_\d+_{0,2}|§P\d+§/g)) {
+			if (match.index >= splitAt) break;
+			if (match.index + match[0].length > splitAt) {
+				// An oversized literal token is indivisible; emit it alone rather
+				// than producing an empty chunk and failing to advance.
+				splitAt = match.index || match[0].length;
+				break;
+			}
+		}
+		// Do not split a Unicode code point in half at the hard limit.
+		if (/[\uD800-\uDBFF]/.test(remaining[splitAt - 1] ?? "") && /[\uDC00-\uDFFF]/.test(remaining[splitAt] ?? "")) splitAt -= 1;
 		chunks.push(remaining.slice(0, splitAt));
 		remaining = remaining.slice(splitAt);
 	}
@@ -332,7 +372,6 @@ function splitLargeProseSegment(text: string, maxChars = FINAL_ANSWER_CHUNK_MAX_
 function isTechnicalBlock(text: string): boolean {
 	const lines = text.split("\n").filter((line) => line.trim());
 	if (lines.length === 0) return false;
-	if (lines.length >= 2 && lines.every((line) => line.trim().startsWith("|"))) return true;
 	if (lines.some((line) => /^(diff --git|@@\s|\+\+\+\s|---\s)/.test(line))) return true;
 	if (lines.some((line) => /^(Traceback \(|\s*at\s+\S+|\w*Error:)/.test(line))) return true;
 	if (lines.some((line) => /^[$]\s|^(PASS|FAIL|ERROR)\b|^npm ERR!/i.test(line.trim()))) return true;
