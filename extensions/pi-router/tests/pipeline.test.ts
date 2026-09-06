@@ -1,6 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { DEFAULT_ROUTER_CONFIG } from "../src/config.ts";
+import { createDefaultModelProfileState, type ModelProfileApplicationResult } from "../src/model-profile.ts";
 import { prepareRoutedPrompt } from "../src/pipeline.ts";
 
 describe("routed prompt pipeline", () => {
@@ -24,7 +25,7 @@ describe("routed prompt pipeline", () => {
 		assert.equal(prepared.prompt, "Improve the router.");
 		assert.equal(prepared.details?.phase, "pre-dispatch");
 		assert.equal(prepared.details?.expanded, false);
-		assert.equal(prepared.details?.summary, "router: es→en thinking:medium workModel:stratus/stratus-code");
+		assert.equal(prepared.details?.summary, "router: es→en profile:Luna Max model:openai-codex/gpt-5.6-luna thinking:max workModel:stratus/stratus-code");
 	});
 
 	it("warns and dispatches the original prompt when the router model is unavailable", async () => {
@@ -64,6 +65,55 @@ describe("routed prompt pipeline", () => {
 
 		assert.equal(result.action, "handled");
 		assert.match(result.message, /router model unavailable: timeout/);
+	});
+
+	it("selects and strips a leading profile directive before routing", async () => {
+		const appliedProfiles: string[] = [];
+		let routedPrompt = "";
+		const prepared = await prepareRoutedPrompt({
+			prompt: "Use Astra: mejora el router",
+			config: { ...DEFAULT_ROUTER_CONFIG, state: "on" },
+			profileState: createDefaultModelProfileState(),
+			applyModelProfile: async (profile) => {
+				appliedProfiles.push(`${profile.id}:${profile.source}`);
+				return { applied: true } satisfies ModelProfileApplicationResult;
+			},
+			routePrompt: async (prompt) => {
+				routedPrompt = prompt;
+				return {
+					englishPrompt: "Improve the router.",
+					sourceLanguage: "es",
+					thinkingLevel: "medium",
+					translateFinalAnswer: true,
+				};
+			},
+		});
+
+		assert.equal(routedPrompt, "mejora el router");
+		assert.equal(prepared.action, "transform");
+		assert.equal(prepared.prompt, "Improve the router.");
+		assert.equal(prepared.profile.id, "astra-high");
+		assert.deepEqual(appliedProfiles, ["astra-high:prompt"]);
+		assert.match(prepared.details.summary, /profile:Astra High/);
+	});
+
+	it("blocks dispatch and leaves the prior profile active when profile application fails", async () => {
+		const result = await prepareRoutedPrompt({
+			prompt: "Use Astra: mejora el router",
+			config: { ...DEFAULT_ROUTER_CONFIG, state: "on" },
+			profileState: createDefaultModelProfileState(),
+			applyModelProfile: async () => ({ applied: false, error: "gpt-6-astra is unavailable" }),
+			routePrompt: async () => ({
+				englishPrompt: "Improve the router.",
+				sourceLanguage: "es",
+				thinkingLevel: "medium",
+				translateFinalAnswer: true,
+			}),
+		});
+
+		assert.equal(result.action, "handled");
+		assert.match(result.message, /gpt-6-astra is unavailable/);
+		assert.equal(result.profile.id, "luna-max");
 	});
 
 	it("passes through when router is off or bypass prefix is used", async () => {

@@ -1,5 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { ASTRA_HIGH_PROFILE, createDefaultModelProfileState } from "../src/model-profile.ts";
 import {
 	createRouterDetailsEntry,
 	extendRouterDetailsAfterCompletion,
@@ -14,14 +15,36 @@ describe("router details UX model", () => {
 			originalPrompt: "mejora el router",
 			transformedPrompt: "Improve the router.",
 			sourceLanguage: "es",
-			routerModel: "llama-cpp/gemma4",
+			routerModel: "openai-codex/gpt-5.4-mini",
 			requestedThinkingLevel: "medium",
 		}, { provider: "stratus", model: "stratus-code" });
 
 		assert.equal(entry.phase, "pre-dispatch");
 		assert.equal(entry.expanded, false);
-		assert.equal(entry.summary, "router: es→en thinking:medium workModel:stratus/stratus-code");
+		assert.equal(entry.summary, "router: es→en profile:Luna Max model:openai-codex/gpt-5.6-luna thinking:max workModel:stratus/stratus-code");
+		assert.equal(entry.details.profileSource, "default");
+		assert.equal(entry.details.profileModel, "openai-codex/gpt-5.6-luna");
 		assert.equal(entry.details.transformedPrompt, "Improve the router.");
+	});
+
+	it("retains requested and effective profile diagnostics when application fails", () => {
+		const entry = createRouterDetailsEntry({
+			originalPrompt: "Use Astra: hola",
+			transformedPrompt: "hola",
+			sourceLanguage: "es",
+			routerModel: "openai-codex/gpt-5.4-mini",
+			requestedThinkingLevel: "medium",
+		}, undefined, createDefaultModelProfileState(), {
+			requestedProfile: { ...ASTRA_HIGH_PROFILE, source: "prompt" },
+			profileApplicationError: "model unavailable",
+		});
+
+		assert.equal(entry.details.profile, "Luna Max");
+		assert.equal(entry.details.requestedProfile, "Astra High");
+		assert.equal(entry.details.requestedProfileModel, "openai-codex/gpt-6-astra");
+		assert.equal(entry.details.requestedProfileThinkingLevel, "high");
+		assert.equal(entry.details.effectiveModel, undefined);
+		assert.equal(entry.details.profileApplicationError, "model unavailable");
 	});
 
 	it("toggles details without changing routing enablement", () => {
@@ -29,7 +52,7 @@ describe("router details UX model", () => {
 			originalPrompt: "hola",
 			transformedPrompt: "hello",
 			sourceLanguage: "es",
-			routerModel: "llama-cpp/gemma4",
+			routerModel: "openai-codex/gpt-5.4-mini",
 			requestedThinkingLevel: "low",
 		}, undefined);
 
@@ -44,7 +67,7 @@ describe("router details UX model", () => {
 			originalPrompt: "hola",
 			transformedPrompt: "hello",
 			sourceLanguage: "es",
-			routerModel: "llama-cpp/gemma4",
+			routerModel: "openai-codex/gpt-5.4-mini",
 			requestedThinkingLevel: "low",
 		}, undefined);
 

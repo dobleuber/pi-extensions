@@ -1,0 +1,2 @@
+# Preserve the recorded Markdown fixture, including its two-space hard line breaks.
+extensions/pi-router/tests/fixtures/router-stress-answer.md whitespace=-blank-at-eol

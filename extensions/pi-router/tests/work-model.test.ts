@@ -13,8 +13,8 @@ describe("work-model policy", () => {
 		const workModel = selectedWorkModelFromPiContext(ctx);
 
 		assert.deepEqual(workModel, { provider: "stratus", model: "stratus-code" });
-		assert.equal(DEFAULT_ROUTER_CONFIG.routerModel.provider, "llama-cpp");
-		assert.equal(DEFAULT_ROUTER_CONFIG.routerModel.model, "gemma4-12b");
+		assert.equal(DEFAULT_ROUTER_CONFIG.routerModel.provider, "openai-codex");
+		assert.equal(DEFAULT_ROUTER_CONFIG.routerModel.model, "gpt-5.6-luna");
 	});
 
 	it("formats default, Stratus, and changed work models without changing router policy", () => {

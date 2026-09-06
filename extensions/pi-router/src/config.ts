@@ -1,10 +1,11 @@
+import type { ModelProfileState } from "./model-profile.ts";
+
 export type RouterState = "off" | "on";
 export type RouterFallbackMode = "passthrough" | "passthrough-with-warning" | "error";
 
 export interface RouterModelConfig {
 	provider: string;
 	model: string;
-	baseUrl: string;
 	timeoutMs: number;
 	fallbackMode: RouterFallbackMode;
 	maxInputChars: number;
@@ -34,16 +35,16 @@ export interface WorkModelInfo {
 export interface RouterStatusInput {
 	config: RouterConfig;
 	workModel?: WorkModelInfo | null;
+	profile?: ModelProfileState | null;
 	degradedReason?: string | null;
 }
 
 export const DEFAULT_ROUTER_CONFIG: RouterConfig = {
 	state: "off",
 	routerModel: {
-		provider: "llama-cpp",
-		model: "gemma4-12b",
-		baseUrl: "http://127.0.0.1:11434/v1",
-		timeoutMs: 5000,
+		provider: "openai-codex",
+		model: "gpt-5.6-luna",
+		timeoutMs: 15000,
 		fallbackMode: "passthrough-with-warning",
 		maxInputChars: 12000,
 	},
@@ -66,7 +67,11 @@ export function resolveRouterState(
 export function routerStatusSummary(input: RouterStatusInput): string {
 	const routerModel = formatModel(input.config.routerModel.provider, input.config.routerModel.model);
 	const workModel = formatModel(input.workModel?.provider, input.workModel?.model);
-	const parts = [`router:${input.config.state}`, `routerModel:${routerModel}`, `workModel:${workModel}`];
+	const parts = [`router:${input.config.state}`];
+	if (input.profile) {
+		parts.push(`profile:${input.profile.label}`, `profileSource:${input.profile.source}`, `profileModel:${formatModel(input.profile.provider, input.profile.model)}`, `profileThinking:${input.profile.thinkingLevel}`);
+	}
+	parts.push(`routerModel:${routerModel}`, `workModel:${workModel}`);
 	if (input.degradedReason) {
 		parts.push(`degraded:${input.degradedReason}`);
 	}

@@ -1,7 +1,7 @@
 {
   "name": "pi-router-extension",
   "version": "0.1.0",
-  "description": "Pi extension for Spanish-to-English prompt routing, thinking selection, and Spanish final answers.",
+  "description": "Pi extension for Spanish-to-English prompt routing, deterministic work-model profiles, and Spanish final answers.",
   "type": "module",
   "private": true,
   "scripts": {
@@ -11,9 +11,12 @@
     "extensions": ["./src/index.ts"]
   },
   "peerDependencies": {
-    "@earendil-works/pi-coding-agent": "*"
+    "@earendil-works/pi-ai": ">=0.85.1",
+    "@earendil-works/pi-coding-agent": ">=0.85.1"
   },
   "devDependencies": {
+    "@earendil-works/pi-ai": "^0.85.1",
+    "@types/node": "^26.4.1",
     "tsx": "^4.20.0",
     "typescript": "^5.8.0"
   }

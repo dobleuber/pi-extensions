@@ -1,5 +1,6 @@
 import type { WorkModelInfo } from "./config.ts";
-import type { RouterMetadata, ThinkingLevel } from "./router-model.ts";
+import { createDefaultModelProfileState, type ModelProfileState } from "./model-profile.ts";
+import type { RouterMetadata } from "./router-model.ts";
 
 export type RouterDetailsPhase = "pre-dispatch" | "complete";
 
@@ -8,10 +9,24 @@ export interface RouterDetails {
 	transformedPrompt: string;
 	sourceLanguage: string;
 	routerModel: string;
-	requestedThinkingLevel: ThinkingLevel;
+	requestedThinkingLevel: ModelProfileState["thinkingLevel"];
 	workModel: string;
+	profileId: ModelProfileState["id"];
+	profile: string;
+	profileSource: ModelProfileState["source"];
+	profileModel: string;
+	profileThinkingLevel: ModelProfileState["thinkingLevel"];
+	assistantTimestamp?: number;
+	effectiveModel?: string;
+	requestedProfile?: string;
+	requestedProfileModel?: string;
+	requestedProfileThinkingLevel?: ModelProfileState["thinkingLevel"];
+	profileApplicationError?: string;
 	englishAnswer?: string;
 	spanishAnswer?: string;
+	/** Per-content-block answers preserve boundaries for transient context restoration. */
+	englishAnswerBlocks?: string[];
+	spanishAnswerBlocks?: string[];
 	effectiveThinkingLevel?: string;
 	fallbackEvents?: string[];
 }
@@ -27,24 +42,62 @@ export interface RouterDetailsEntry {
 export interface CompletedRouterDetails {
 	englishAnswer: string;
 	spanishAnswer: string;
+	englishAnswerBlocks?: string[];
+	spanishAnswerBlocks?: string[];
+	assistantTimestamp?: number;
 	effectiveThinkingLevel?: string;
 	fallbackEvents?: string[];
 }
 
-export function createRouterDetailsEntry(metadata: RouterMetadata, workModel?: WorkModelInfo): RouterDetailsEntry {
+export interface RouterProfileDetailsOptions {
+	requestedProfile?: ModelProfileState;
+	effectiveModel?: WorkModelInfo;
+	effectiveThinkingLevel?: string;
+	profileApplicationError?: string;
+}
+
+export function createRouterDetailsEntry(
+	metadata: RouterMetadata,
+	workModel: WorkModelInfo | undefined,
+	profile: ModelProfileState = createDefaultModelProfileState(),
+	options: RouterProfileDetailsOptions = {},
+): RouterDetailsEntry {
 	const formattedWorkModel = formatWorkModel(workModel);
+	const profileModel = formatWorkModel({ provider: profile.provider, model: profile.model });
+	const effectiveModel = options.effectiveModel
+		? formatWorkModel(options.effectiveModel)
+		: options.profileApplicationError
+			? undefined
+			: profileModel;
+	const requestedProfile = options.requestedProfile && options.requestedProfile.id !== profile.id
+		? options.requestedProfile.label
+		: undefined;
+	const requestedProfileModel = options.requestedProfile && options.requestedProfile.id !== profile.id
+		? formatWorkModel({ provider: options.requestedProfile.provider, model: options.requestedProfile.model })
+		: undefined;
 	return {
 		phase: "pre-dispatch",
 		expanded: false,
 		routingState: "on",
-		summary: `router: ${metadata.sourceLanguage}→en thinking:${metadata.requestedThinkingLevel} workModel:${formattedWorkModel}`,
+		summary: `router: ${metadata.sourceLanguage}→en profile:${profile.label} model:${profileModel} thinking:${profile.thinkingLevel} workModel:${formattedWorkModel}`,
 		details: {
 			originalPrompt: metadata.originalPrompt,
 			transformedPrompt: metadata.transformedPrompt,
 			sourceLanguage: metadata.sourceLanguage,
 			routerModel: metadata.routerModel,
-			requestedThinkingLevel: metadata.requestedThinkingLevel,
+			requestedThinkingLevel: profile.thinkingLevel,
 			workModel: formattedWorkModel,
+			profileId: profile.id,
+			profile: profile.label,
+			profileSource: profile.source,
+			profileModel,
+			profileThinkingLevel: profile.thinkingLevel,
+			...(effectiveModel ? { effectiveModel } : {}),
+			...(requestedProfile ? { requestedProfile } : {}),
+			...(requestedProfileModel ? { requestedProfileModel } : {}),
+			...(options.requestedProfile && requestedProfile ? { requestedProfileThinkingLevel: options.requestedProfile.thinkingLevel } : {}),
+			...(options.effectiveThinkingLevel ? { effectiveThinkingLevel: options.effectiveThinkingLevel } : {}),
+			...(options.profileApplicationError ? { profileApplicationError: options.profileApplicationError } : {}),
 			...(metadata.fallback ? { fallbackEvents: [metadata.fallback] } : {}),
 		},
 	};
@@ -65,6 +118,9 @@ export function extendRouterDetailsAfterCompletion(
 			...entry.details,
 			englishAnswer: completion.englishAnswer,
 			spanishAnswer: completion.spanishAnswer,
+			...(completion.englishAnswerBlocks ? { englishAnswerBlocks: completion.englishAnswerBlocks } : {}),
+			...(completion.spanishAnswerBlocks ? { spanishAnswerBlocks: completion.spanishAnswerBlocks } : {}),
+			...(completion.assistantTimestamp !== undefined ? { assistantTimestamp: completion.assistantTimestamp } : {}),
 			...(completion.effectiveThinkingLevel ? { effectiveThinkingLevel: completion.effectiveThinkingLevel } : {}),
 			...(completion.fallbackEvents ? { fallbackEvents: completion.fallbackEvents } : {}),
 		},
