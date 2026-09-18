@@ -705,21 +705,21 @@ describe("pi-router extension entrypoint", () => {
 			const first = await handlers.get("input")![0]({ text: "Use Astra: arregla esto", source: "interactive" }, ctx);
 			assert.deepEqual(first, { action: "transform", text: "English: arregla esto" });
 			assert.deepEqual(currentModel, { provider: "openai-codex", id: "gpt-6-astra" });
-			assert.equal(currentThinking, "high");
+			assert.equal(currentThinking, "medium");
 
 			await handlers.get("input")![0]({ text: "continúa la investigación", source: "interactive" }, ctx);
 			assert.deepEqual(currentModel, { provider: "openai-codex", id: "gpt-6-astra" });
-			assert.equal(currentThinking, "high");
+			assert.equal(currentThinking, "medium");
 
 			await commands.get("router")!.handler("off", ctx);
 			currentModel = { provider: "native", id: "native-model" };
 			currentThinking = "low";
 			await commands.get("router")!.handler("on", ctx);
 			assert.deepEqual(currentModel, { provider: "openai-codex", id: "gpt-6-astra" });
-			assert.equal(currentThinking, "high");
+			assert.equal(currentThinking, "medium");
 			await handlers.get("input")![0]({ text: "sigue con eso", source: "interactive" }, ctx);
 			assert.deepEqual(currentModel, { provider: "openai-codex", id: "gpt-6-astra" });
-			assert.equal(currentThinking, "high");
+			assert.equal(currentThinking, "medium");
 
 			const reset = await handlers.get("input")![0]({ text: "Usa el modelo predeterminado: termina", source: "interactive" }, ctx);
 			assert.deepEqual(reset, { action: "transform", text: "English: termina" });
@@ -800,7 +800,7 @@ describe("pi-router extension entrypoint", () => {
 			const resumedContext = makeContext("session-1");
 			await handlers.get("session_start")![1]({ reason: "resume" }, resumedContext);
 			assert.deepEqual(currentModel, { provider: "openai-codex", id: "gpt-6-astra" });
-			assert.equal(currentThinking, "high");
+			assert.equal(currentThinking, "medium");
 		});
 
 		it("gates native model commands only while routing is enabled", async () => {

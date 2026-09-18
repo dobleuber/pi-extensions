@@ -92,9 +92,33 @@ describe("routed prompt pipeline", () => {
 		assert.equal(routedPrompt, "mejora el router");
 		assert.equal(prepared.action, "transform");
 		assert.equal(prepared.prompt, "Improve the router.");
-		assert.equal(prepared.profile.id, "astra-high");
-		assert.deepEqual(appliedProfiles, ["astra-high:prompt"]);
-		assert.match(prepared.details.summary, /profile:Astra High/);
+		assert.equal(prepared.profile.id, "astra-medium");
+		assert.deepEqual(appliedProfiles, ["astra-medium:prompt"]);
+		assert.match(prepared.details.summary, /profile:Astra Medium/);
+	});
+
+	it("selects and strips the Sol alias for Astra Low before routing", async () => {
+		const appliedProfiles: string[] = [];
+		const prepared = await prepareRoutedPrompt({
+			prompt: "Use Sol: mejora el router",
+			config: { ...DEFAULT_ROUTER_CONFIG, state: "on" },
+			profileState: createDefaultModelProfileState(),
+			applyModelProfile: async (profile) => {
+				appliedProfiles.push(`${profile.id}:${profile.source}`);
+				return { applied: true } satisfies ModelProfileApplicationResult;
+			},
+			routePrompt: async (prompt) => ({
+				englishPrompt: `Improve: ${prompt}`,
+				sourceLanguage: "es",
+				thinkingLevel: "medium",
+				translateFinalAnswer: true,
+			}),
+		});
+
+		assert.equal(prepared.prompt, "Improve: mejora el router");
+		assert.equal(prepared.profile.id, "astra-low");
+		assert.deepEqual(appliedProfiles, ["astra-low:prompt"]);
+		assert.match(prepared.details.summary, /profile:Sol/);
 	});
 
 	it("blocks dispatch and leaves the prior profile active when profile application fails", async () => {

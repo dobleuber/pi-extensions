@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { ASTRA_HIGH_PROFILE, createDefaultModelProfileState } from "../src/model-profile.ts";
+import { ASTRA_MEDIUM_PROFILE, createDefaultModelProfileState } from "../src/model-profile.ts";
 import {
 	createRouterDetailsEntry,
 	extendRouterDetailsAfterCompletion,
@@ -35,14 +35,14 @@ describe("router details UX model", () => {
 			routerModel: "openai-codex/gpt-5.4-mini",
 			requestedThinkingLevel: "medium",
 		}, undefined, createDefaultModelProfileState(), {
-			requestedProfile: { ...ASTRA_HIGH_PROFILE, source: "prompt" },
+			requestedProfile: { ...ASTRA_MEDIUM_PROFILE, source: "prompt" },
 			profileApplicationError: "model unavailable",
 		});
 
 		assert.equal(entry.details.profile, "Luna Max");
-		assert.equal(entry.details.requestedProfile, "Astra High");
+		assert.equal(entry.details.requestedProfile, "Astra Medium");
 		assert.equal(entry.details.requestedProfileModel, "openai-codex/gpt-6-astra");
-		assert.equal(entry.details.requestedProfileThinkingLevel, "high");
+		assert.equal(entry.details.requestedProfileThinkingLevel, "medium");
 		assert.equal(entry.details.effectiveModel, undefined);
 		assert.equal(entry.details.profileApplicationError, "model unavailable");
 	});

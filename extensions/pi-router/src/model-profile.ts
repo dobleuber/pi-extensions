@@ -1,8 +1,8 @@
 import type { WorkModelInfo } from "./config.ts";
 
-export type ModelProfileId = "luna-max" | "astra-high";
+export type ModelProfileId = "luna-max" | "astra-low" | "astra-medium";
 export type ModelProfileSource = "default" | "prompt";
-export type ProfileThinkingLevel = "high" | "max";
+export type ProfileThinkingLevel = "low" | "medium" | "high" | "max";
 
 export interface ModelProfile {
 	readonly id: ModelProfileId;
@@ -30,20 +30,29 @@ export const DEFAULT_MODEL_PROFILE: ModelProfile = Object.freeze({
 	thinkingLevel: "max",
 });
 
-export const ASTRA_HIGH_PROFILE: ModelProfile = Object.freeze({
-	id: "astra-high",
-	label: "Astra High",
+export const ASTRA_LOW_PROFILE: ModelProfile = Object.freeze({
+	id: "astra-low",
+	label: "Sol",
 	provider: "openai-codex",
 	model: "gpt-6-astra",
-	thinkingLevel: "high",
+	thinkingLevel: "low",
+});
+
+export const ASTRA_MEDIUM_PROFILE: ModelProfile = Object.freeze({
+	id: "astra-medium",
+	label: "Astra Medium",
+	provider: "openai-codex",
+	model: "gpt-6-astra",
+	thinkingLevel: "medium",
 });
 
 export const MODEL_PROFILES: Readonly<Record<ModelProfileId, ModelProfile>> = Object.freeze({
 	[DEFAULT_MODEL_PROFILE.id]: DEFAULT_MODEL_PROFILE,
-	[ASTRA_HIGH_PROFILE.id]: ASTRA_HIGH_PROFILE,
+	[ASTRA_LOW_PROFILE.id]: ASTRA_LOW_PROFILE,
+	[ASTRA_MEDIUM_PROFILE.id]: ASTRA_MEDIUM_PROFILE,
 } as Record<ModelProfileId, ModelProfile>);
 
-const MODEL_PROFILE_DIRECTIVE = /^\s*(Use Astra:|Usa Astra:|Use Default:|Usa el modelo predeterminado:)/i;
+const MODEL_PROFILE_DIRECTIVE = /^\s*(Use Astra:|Usa Astra:|Use Sol:|Usa Sol:|Use Default:|Usa el modelo predeterminado:)/i;
 
 /**
  * Recognize only the supported leading, colon-delimited profile controls.
@@ -62,8 +71,10 @@ export function parseModelProfilePrompt(prompt: string): ParsedModelProfilePromp
 	}
 
 	const profile: ModelProfileId = directive === "use astra:" || directive === "usa astra:"
-		? "astra-high"
-		: "luna-max";
+		? "astra-medium"
+		: directive === "use sol:" || directive === "usa sol:"
+			? "astra-low"
+			: "luna-max";
 	const source: ModelProfileSource = profile === "luna-max" ? "default" : "prompt";
 
 	return {
