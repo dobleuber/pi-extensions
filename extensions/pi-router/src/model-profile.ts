@@ -32,7 +32,7 @@ export const DEFAULT_MODEL_PROFILE: ModelProfile = Object.freeze({
 
 export const ASTRA_LOW_PROFILE: ModelProfile = Object.freeze({
 	id: "astra-low",
-	label: "Sol",
+	label: "Vega",
 	provider: "openai-codex",
 	model: "gpt-6-astra",
 	thinkingLevel: "low",
@@ -52,7 +52,7 @@ export const MODEL_PROFILES: Readonly<Record<ModelProfileId, ModelProfile>> = Ob
 	[ASTRA_MEDIUM_PROFILE.id]: ASTRA_MEDIUM_PROFILE,
 } as Record<ModelProfileId, ModelProfile>);
 
-const MODEL_PROFILE_DIRECTIVE = /^\s*(Use Astra:|Usa Astra:|Use Sol:|Usa Sol:|Use Default:|Usa el modelo predeterminado:)/i;
+const MODEL_PROFILE_DIRECTIVE = /^\s*(Use Astra:|Usa Astra:|Use Vega:|Usa Vega:|Use Default:|Usa el modelo predeterminado:)/i;
 
 /**
  * Recognize only the supported leading, colon-delimited profile controls.
@@ -72,7 +72,7 @@ export function parseModelProfilePrompt(prompt: string): ParsedModelProfilePromp
 
 	const profile: ModelProfileId = directive === "use astra:" || directive === "usa astra:"
 		? "astra-medium"
-		: directive === "use sol:" || directive === "usa sol:"
+		: directive === "use vega:" || directive === "usa vega:"
 			? "astra-low"
 			: "luna-max";
 	const source: ModelProfileSource = profile === "luna-max" ? "default" : "prompt";

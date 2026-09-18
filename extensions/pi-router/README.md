@@ -14,22 +14,22 @@ Residual-English checks use Unicode words and run only on translated prose, not 
 | --- | --- | --- | --- |
 | **Luna Max** (default) | `Use Default:` / `Usa el modelo predeterminado:` | `openai-codex/gpt-5.6-luna` | `max` |
 | **Astra Medium** | `Use Astra:` / `Usa Astra:` | `openai-codex/gpt-6-astra` | `medium` |
-| **Sol** (Astra Low) | `Use Sol:` / `Usa Sol:` | `openai-codex/gpt-6-astra` | `low` |
+| **Vega** (Astra Low) | `Use Vega:` / `Usa Vega:` | `openai-codex/gpt-6-astra` | `low` |
 
 Luna Max is selected when router control starts for a session. Use a supported phrase at the beginning of a prompt to select a profile for that prompt and subsequent routed prompts:
 
 ```text
 Use Astra: inspect the failing test
 Usa Astra: inspecciona el test que falla
-Use Sol: use the lower-effort Astra profile
-Usa Sol: usa el perfil Astra de menor esfuerzo
+Use Vega: use the lower-effort Astra profile
+Usa Vega: usa el perfil Astra de menor esfuerzo
 Use Default: continue with the normal-cost model
 Usa el modelo predeterminado: continúa con el modelo normal
 ```
 
 Controls are strict, case-insensitive, and must be the first non-whitespace content. The colon is required and task text must follow it. The recognized control is removed before the task reaches the router and work model. Mentions in normal text, quotes, fenced code, or conversation context do not select a profile.
 
-Work-model thinking is fixed by the selected profile: Luna Max uses `max`, Astra Medium uses `medium`, and Sol uses `low` with the Astra model. Router and translation calls use Luna with reasoning disabled independently of these work-profile settings. Task complexity, keywords, risk, router classifications, and model advisories never promote or demote the profile. The old undocumented `@thinking:<level>` syntax is removed and is not a compatibility alias.
+Work-model thinking is fixed by the selected profile: Luna Max uses `max`, Astra Medium uses `medium`, and Vega uses `low` with the Astra model. Router and translation calls use Luna with reasoning disabled independently of these work-profile settings. Task complexity, keywords, risk, router classifications, and model advisories never promote or demote the profile. The old undocumented `@thinking:<level>` syntax is removed and is not a compatibility alias.
 
 Profile state belongs to the active Pi session. It survives `/router off` followed by `/router on` and is restored when that same session is resumed, but is not written to Pi's global startup model or thinking preference. New and forked sessions start at Luna Max. `Use Default:` resets the session profile and clears the explicit selection source. Native model changes made while routing is off do not become router policy; routing reapplies its session profile when enabled again.
 

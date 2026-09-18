@@ -10,7 +10,7 @@ import {
 } from "../src/model-profile.ts";
 
 describe("router model profile policy", () => {
-	it("defines Luna Max as the default profile with Astra Medium and Sol alternates", () => {
+	it("defines Luna Max as the default profile with Astra Medium and Vega alternates", () => {
 		assert.deepEqual(DEFAULT_MODEL_PROFILE, {
 			id: "luna-max",
 			label: "Luna Max",
@@ -27,7 +27,7 @@ describe("router model profile policy", () => {
 		});
 		assert.deepEqual(ASTRA_LOW_PROFILE, {
 			id: "astra-low",
-			label: "Sol",
+			label: "Vega",
 			provider: "openai-codex",
 			model: "gpt-6-astra",
 			thinkingLevel: "low",
@@ -57,13 +57,13 @@ describe("router model profile policy", () => {
 		});
 	});
 
-	it("parses strict English and Spanish Sol phrases case-insensitively", () => {
-		assert.deepEqual(parseModelProfilePrompt("  Use Sol: use the fast profile"), {
+	it("parses strict English and Spanish Vega phrases case-insensitively", () => {
+		assert.deepEqual(parseModelProfilePrompt("  Use Vega: use the fast profile"), {
 			prompt: "use the fast profile",
 			profile: "astra-low",
 			source: "prompt",
 		});
-		assert.deepEqual(parseModelProfilePrompt("uSa SoL: usa el perfil rápido"), {
+		assert.deepEqual(parseModelProfilePrompt("uSa VeGa: usa el perfil rápido"), {
 			prompt: "usa el perfil rápido",
 			profile: "astra-low",
 			source: "prompt",
@@ -89,9 +89,9 @@ describe("router model profile policy", () => {
 			"Use Astra without the delimiter",
 			"Use Astra:",
 			"Use Astra:   ",
-			"Use Sol without the delimiter",
-			"Use Sol:",
-			"Use Sol:   ",
+			"Use Vega without the delimiter",
+			"Use Vega:",
+			"Use Vega:   ",
 			"Use Luna Max: use the normal profile",
 			"@thinking:max fix the router",
 			"```\nUse Astra: do not select this\n```",
@@ -109,7 +109,7 @@ describe("router model profile policy", () => {
 			...ASTRA_MEDIUM_PROFILE,
 			source: "prompt",
 		});
-		assert.deepEqual(applyModelProfileDirective(initial, parseModelProfilePrompt("Use Sol: use low effort")), {
+		assert.deepEqual(applyModelProfileDirective(initial, parseModelProfilePrompt("Use Vega: use low effort")), {
 			...ASTRA_LOW_PROFILE,
 			source: "prompt",
 		});

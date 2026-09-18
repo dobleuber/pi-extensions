@@ -97,10 +97,10 @@ describe("routed prompt pipeline", () => {
 		assert.match(prepared.details.summary, /profile:Astra Medium/);
 	});
 
-	it("selects and strips the Sol alias for Astra Low before routing", async () => {
+	it("selects and strips the Vega alias for Astra Low before routing", async () => {
 		const appliedProfiles: string[] = [];
 		const prepared = await prepareRoutedPrompt({
-			prompt: "Use Sol: mejora el router",
+			prompt: "Use Vega: mejora el router",
 			config: { ...DEFAULT_ROUTER_CONFIG, state: "on" },
 			profileState: createDefaultModelProfileState(),
 			applyModelProfile: async (profile) => {
@@ -118,7 +118,7 @@ describe("routed prompt pipeline", () => {
 		assert.equal(prepared.prompt, "Improve: mejora el router");
 		assert.equal(prepared.profile.id, "astra-low");
 		assert.deepEqual(appliedProfiles, ["astra-low:prompt"]);
-		assert.match(prepared.details.summary, /profile:Sol/);
+		assert.match(prepared.details.summary, /profile:Vega/);
 	});
 
 	it("blocks dispatch and leaves the prior profile active when profile application fails", async () => {
