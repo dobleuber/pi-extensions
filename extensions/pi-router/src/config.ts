@@ -1,3 +1,5 @@
+import { DEFAULT_JEV_CONFIG, type JevConfig } from "./jev.ts";
+import type { JevCostTier } from "./jev-policy.ts";
 import type { ModelProfileState } from "./model-profile.ts";
 
 export type RouterState = "off" | "on";
@@ -15,6 +17,7 @@ export interface RouterConfig {
 	state: RouterState;
 	routerModel: RouterModelConfig;
 	detailsShortcut?: string;
+	jev?: JevConfig;
 }
 
 export interface RouterStateOverrides {
@@ -49,7 +52,27 @@ export const DEFAULT_ROUTER_CONFIG: RouterConfig = {
 		maxInputChars: 12000,
 	},
 	detailsShortcut: "ctrl+alt+r",
+	jev: DEFAULT_JEV_CONFIG,
 };
+
+export function resolveJevConfig(config?: Partial<JevConfig>): JevConfig {
+	return {
+		model: typeof config?.model === "string" && config.model.trim() ? config.model : DEFAULT_JEV_CONFIG.model,
+		timeoutMs: typeof config?.timeoutMs === "number" && config.timeoutMs > 0 ? config.timeoutMs : DEFAULT_JEV_CONFIG.timeoutMs,
+		maxStateChars: typeof config?.maxStateChars === "number" && config.maxStateChars > 0 ? config.maxStateChars : DEFAULT_JEV_CONFIG.maxStateChars,
+		profileMinConfidence: boundedConfidence(config?.profileMinConfidence, DEFAULT_JEV_CONFIG.profileMinConfidence),
+		translationMinConfidence: boundedConfidence(config?.translationMinConfidence, DEFAULT_JEV_CONFIG.translationMinConfidence),
+		maxProfileCostTier: boundedCostTier(config?.maxProfileCostTier, DEFAULT_JEV_CONFIG.maxProfileCostTier),
+	};
+}
+
+function boundedConfidence(value: number | undefined, fallback: number): number {
+	return typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 1 ? value : fallback;
+}
+
+function boundedCostTier(value: JevCostTier | undefined, fallback: JevCostTier): JevCostTier {
+	return value === 1 || value === 2 || value === 3 ? value : fallback;
+}
 
 export function resolveRouterState(
 	config: Pick<RouterConfig, "state">,

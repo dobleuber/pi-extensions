@@ -1,17 +1,16 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { DEFAULT_ROUTER_CONFIG, routerStatusSummary, type RouterConfig, type RouterState } from "./config.ts";
+import { DEFAULT_ROUTER_CONFIG, resolveJevConfig, routerStatusSummary, type RouterConfig, type RouterState } from "./config.ts";
 import { extendRouterDetailsAfterCompletion, resolveDetailsShortcut, toggleRouterDetails, type RouterDetailsEntry } from "./details.ts";
 import { translateFinalAnswerToSpanish, type FinalAnswerTranslationResult } from "./final-answer.ts";
+import { createJevDecisionClient, type JevDecisionClient } from "./jev.ts";
+import { maskProtectedSpans } from "./protected-text.ts";
 import { shouldRouteInput } from "./input.ts";
 import {
 	applyModelProfileToRuntime,
 	createDefaultModelProfileState,
 	formatModelProfile,
-	MODEL_PROFILES,
 	type ModelProfileApplicationResult,
-	type ModelProfileId,
 	type ModelProfileRuntime,
-	type ModelProfileSource,
 	type ModelProfileState,
 } from "./model-profile.ts";
 import { prepareRoutedPrompt, type PrepareRoutedPromptInput } from "./pipeline.ts";
@@ -25,6 +24,7 @@ export interface PiRouterDependencies {
 	routePrompt?: PrepareRoutedPromptInput["routePrompt"];
 	translateFinalAnswer?: (answer: string, config: RouterConfig["routerModel"], runtime?: PiAiRuntime) => Promise<FinalAnswerTranslationResult>;
 	applyModelProfile?: (profile: ModelProfileState, previous: ModelProfileState, ctx: any) => Promise<ModelProfileApplicationResult> | ModelProfileApplicationResult;
+	jev?: JevDecisionClient;
 	stateStore?: RouterStateStore;
 }
 
@@ -129,61 +129,6 @@ function buildRogerSpeechResponse(displayText: string, speechText: string): stri
 
 function isNativeModelControl(text: string): boolean {
 	return /^\s*\/(?:model|thinking)(?:\s|$)/i.test(text);
-}
-
-const PROFILE_SESSION_ENTRY_TYPE = "pi-router-profile";
-
-interface PersistedProfileState {
-	version: 1;
-	sessionId: string;
-	profileId: ModelProfileId;
-	source: ModelProfileSource;
-}
-
-function restoreSessionProfile(ctx: any): ModelProfileState | undefined {
-	const sessionManager = ctx?.sessionManager;
-	if (typeof sessionManager?.getEntries !== "function" || typeof sessionManager?.getSessionId !== "function") {
-		return undefined;
-	}
-	try {
-		const sessionId = sessionManager.getSessionId();
-		if (typeof sessionId !== "string" || !sessionId) return undefined;
-		const entries = sessionManager.getEntries();
-		if (!Array.isArray(entries)) return undefined;
-		for (const entry of [...entries].reverse()) {
-			if (entry?.type !== "custom" || entry.customType !== PROFILE_SESSION_ENTRY_TYPE) continue;
-			const data = entry.data as Partial<PersistedProfileState> | undefined;
-			if (data?.version !== 1 || data.sessionId !== sessionId) continue;
-			if (data.source !== "default" && data.source !== "prompt") continue;
-			const profile = data.profileId ? MODEL_PROFILES[data.profileId] : undefined;
-			if (profile) return { ...profile, source: data.source };
-		}
-	} catch {
-		// A missing/incompatible session context simply starts at the safe default.
-	}
-	return undefined;
-}
-
-function profileStateChanged(previous: ModelProfileState, next: ModelProfileState): boolean {
-	return previous.id !== next.id || previous.source !== next.source;
-}
-
-function persistSessionProfile(pi: any, ctx: any, profile: ModelProfileState): void {
-	const sessionManager = ctx?.sessionManager;
-	if (typeof pi?.appendEntry !== "function" || typeof sessionManager?.getSessionId !== "function") return;
-	try {
-		const sessionId = sessionManager.getSessionId();
-		if (typeof sessionId !== "string" || !sessionId) return;
-		const data: PersistedProfileState = {
-			version: 1,
-			sessionId,
-			profileId: profile.id,
-			source: profile.source,
-		};
-		pi.appendEntry(PROFILE_SESSION_ENTRY_TYPE, data);
-	} catch {
-		// Pi's extension runner reports append failures; do not make dispatch fail twice.
-	}
 }
 
 function createPiModelProfileRuntime(pi: any, ctx: any): ModelProfileRuntime | undefined {
@@ -329,6 +274,43 @@ function restoreStoredAssistantAnswer(message: any, answer: StoredAssistantAnswe
 	return { ...message, content: replaceFinalTextBlocks(message.content, new Map([[finalBlocks[0].index, answer.english]])) };
 }
 
+function buildRecentConversationSummary(ctx: any, maxStateChars: number): string | undefined {
+	const branch = ctx?.sessionManager?.getBranch?.() ?? ctx?.sessionManager?.getEntries?.();
+	if (!Array.isArray(branch)) return undefined;
+	const messages = branch
+		.map((entry: any) => entry?.message ?? (entry?.type === "message" ? entry : undefined))
+		.filter((message: any) => message?.role === "user" || message?.role === "assistant")
+		.slice(-6)
+		.map((message: any) => {
+			const content = typeof message.content === "string"
+				? message.content
+				: Array.isArray(message.content)
+					? message.content.filter((part: any) => part?.type === "text" && typeof part.text === "string").map((part: any) => part.text).join("")
+					: "";
+			return content.trim() ? `${message.role}: ${content.trim().slice(0, 1200)}` : "";
+		})
+		.filter(Boolean);
+	if (messages.length === 0) return undefined;
+	const available = Math.max(0, maxStateChars - 32);
+	if (available === 0) return undefined;
+	const summary = messages.join("\n");
+	return summary.length > available ? summary.slice(-available) : summary;
+}
+
+function buildJevResponseState(response: string): string {
+	const withoutCode = response
+		.replace(/```[\s\S]*?```/g, " __PI_ROUTER_PROTECTED_CODE__ ")
+		.replace(/`[^`\n]+`/g, " __PI_ROUTER_PROTECTED_INLINE__ ");
+	return maskProtectedSpans(withoutCode).text;
+}
+
+function describeJevError(error: unknown): string {
+	const message = error instanceof Error ? error.message : String(error);
+	const key = process.env.TYPESAFE_API_KEY;
+	const redacted = key ? message.replaceAll(key, "[redacted]") : message;
+	return redacted.replace(/\s+/g, " ").slice(0, 240) || "decision failed";
+}
+
 function renderRouterDetails(entry: RouterDetailsEntry): string {
 	if (!entry.expanded) {
 		return entry.summary;
@@ -348,6 +330,16 @@ function renderRouterDetails(entry: RouterDetailsEntry): string {
 	if (entry.details.requestedProfileThinkingLevel) lines.push(`requestedThinking: ${entry.details.requestedProfileThinkingLevel}`);
 	if (entry.details.effectiveModel) lines.push(`effectiveModel: ${entry.details.effectiveModel}`);
 	if (entry.details.profileApplicationError) lines.push(`profileError: ${entry.details.profileApplicationError}`);
+	if (entry.details.profileApplicationDeferred) lines.push("profileApplication: deferred to receiving turn");
+	if (entry.details.inputTranslationOutcome) lines.push(`inputTranslation: ${entry.details.inputTranslationOutcome}`);
+	if (entry.details.responseTranslationOutcome) lines.push(`responseTranslation: ${entry.details.responseTranslationOutcome}`);
+	if (entry.details.jevInputRecommendation) lines.push(`jevInputRecommendation: ${entry.details.jevInputRecommendation}`);
+	if (entry.details.jevResponseRecommendation) lines.push(`jevResponseRecommendation: ${entry.details.jevResponseRecommendation}`);
+	if (entry.details.jevModel) lines.push(`jevModel: ${entry.details.jevModel}`);
+	if (entry.details.jevDurationMs !== undefined) lines.push(`jevDurationMs: ${entry.details.jevDurationMs}`);
+	if (entry.details.jevPolicyRevision) lines.push(`jevPolicy: ${entry.details.jevPolicyRevision}`);
+	if (entry.details.jevCatalogRevision) lines.push(`jevCatalog: ${entry.details.jevCatalogRevision}`);
+	if (entry.details.jevFallbackReasons?.length) lines.push(`jevFallback: ${entry.details.jevFallbackReasons.join("; ")}`);
 	if (entry.details.effectiveThinkingLevel) lines.push(`effectiveThinking: ${entry.details.effectiveThinkingLevel}`);
 	if (entry.details.englishAnswer) lines.push(`englishAnswer: ${entry.details.englishAnswer}`);
 	if (entry.details.spanishAnswer) lines.push(`spanishAnswer: ${entry.details.spanishAnswer}`);
@@ -363,17 +355,27 @@ interface PendingRoutedTurn {
 	details?: RouterDetailsEntry;
 	shouldTranslateFinalAnswer: boolean;
 	rogerSpeech: boolean;
+	jev?: JevDecisionClient;
 }
 
 interface ActiveAgentTurn {
+	profileBoundaryHandled?: boolean;
+	profileBoundaryFailed?: boolean;
 	pending?: PendingRoutedTurn;
 	carryPendingToNextTurn: boolean;
+}
+
+interface DeferredProfileApplication {
+	profile: ModelProfileState;
+	previous: ModelProfileState;
+	ctx: any;
 }
 
 export function installPiRouter(pi: ExtensionAPI, dependencies: PiRouterDependencies = {}) {
 	const stateStore = dependencies.stateStore ?? createFileRouterStateStore();
 	const initialConfig = dependencies.config ?? DEFAULT_ROUTER_CONFIG;
 	const pendingRoutedTurns: PendingRoutedTurn[] = [];
+	const deferredProfileApplications: DeferredProfileApplication[] = [];
 	let inputTail: Promise<void> | null = null;
 	let messageEndTail: Promise<void> | null = null;
 	let activeProfile = createDefaultModelProfileState();
@@ -410,6 +412,20 @@ export function installPiRouter(pi: ExtensionAPI, dependencies: PiRouterDependen
 
 	const initialPersistedState = readPersistedState();
 	let config: RouterConfig = { ...initialConfig, ...(initialPersistedState !== undefined ? { state: initialPersistedState } : {}) };
+	let jevClient: JevDecisionClient | undefined = dependencies.jev;
+
+	function configuredJevClient(): JevDecisionClient | undefined {
+		const jevConfig = resolveJevConfig(config.jev);
+		if (dependencies.jev) return dependencies.jev;
+		if (!jevClient) {
+			try {
+				jevClient = createJevDecisionClient(jevConfig);
+			} catch {
+				return undefined;
+			}
+		}
+		return jevClient;
+	}
 
 	function appendEntry(type: string, data: unknown): void {
 		if (typeof (pi as any).appendEntry === "function") (pi as any).appendEntry(type, data);
@@ -438,12 +454,40 @@ export function installPiRouter(pi: ExtensionAPI, dependencies: PiRouterDependen
 		}
 	}
 
+	function discardDeferredProfile(profile: ModelProfileState, ctx: any): void {
+		for (let index = deferredProfileApplications.length - 1; index >= 0; index -= 1) {
+			const deferred = deferredProfileApplications[index];
+			if (deferred.ctx === ctx && deferred.profile.id === profile.id) {
+				deferredProfileApplications.splice(index, 1);
+				return;
+			}
+		}
+	}
+
+	async function applyNextDeferredProfile(ctx: any): Promise<boolean> {
+		const deferred = deferredProfileApplications.shift();
+		if (!deferred) return true;
+		const application = await applyPiModelProfile(pi, ctx ?? deferred.ctx, deferred.profile, dependencies, deferred.previous);
+		if (application.applied) return true;
+		const message = `Pi router profile ${formatModelProfile(deferred.profile)} could not be applied at the receiving-turn boundary: ${application.error ?? "unknown error"}`;
+		notify(ctx ?? deferred.ctx, message, "warning");
+		(ctx ?? deferred.ctx)?.ui?.setStatus?.("pi-router", `router:${config.state} degraded`);
+		(ctx ?? deferred.ctx)?.abort?.();
+		(pi as any).abort?.();
+		// The transformed prompt is already queued by the host, so remove its
+		// marker and abort before the provider can receive it. Never substitute a
+		// different profile after an explicit or automatic application failure.
+		pendingRoutedTurns.shift();
+		return false;
+	}
+
 	async function setRouterState(state: RouterConfig["state"], ctx: any): Promise<void> {
 		refreshRouterSettingsFromStore();
 		config = { ...config, state };
 		stateStore.saveState(state);
 		ctx?.ui?.setStatus?.("pi-router", `router:${config.state}`);
 		if (state !== "on") return;
+		activeProfile = createDefaultModelProfileState();
 
 		const application = await applyPiModelProfile(pi, ctx, activeProfile, dependencies, activeProfile);
 		if (!application.applied) {
@@ -500,14 +544,11 @@ export function installPiRouter(pi: ExtensionAPI, dependencies: PiRouterDependen
 	pi.on("session_start", async (event: any, ctx) => {
 		refreshRouterSettingsFromStore();
 		pendingRoutedTurns.length = 0;
+		deferredProfileApplications.length = 0;
 		activeAgentTurn = undefined;
 		sawTurnLifecycleEvent = false;
 		lastDetails = undefined;
-		if (event?.reason === "new" || event?.reason === "fork") {
-			activeProfile = createDefaultModelProfileState();
-		} else {
-			activeProfile = restoreSessionProfile(ctx) ?? createDefaultModelProfileState();
-		}
+		activeProfile = createDefaultModelProfileState();
 		ctx?.ui?.setStatus?.("pi-router", `router:${config.state}`);
 		if (config.state === "on") {
 			const application = await applyPiModelProfile(pi, ctx, activeProfile, dependencies, activeProfile);
@@ -521,16 +562,28 @@ export function installPiRouter(pi: ExtensionAPI, dependencies: PiRouterDependen
 	// Markers are assigned to the host turn that actually receives the user
 	// message. This keeps queued Roger markers from being consumed by an older
 	// tool turn or by an unrelated assistant response.
-	pi.on("turn_start", async () => {
+	pi.on("turn_start", async (_event, ctx) => {
 		sawTurnLifecycleEvent = true;
 		const carriedPending = activeAgentTurn?.carryPendingToNextTurn ? activeAgentTurn.pending : undefined;
 		activeAgentTurn = { pending: carriedPending, carryPendingToNextTurn: false };
+		// A tool continuation keeps the originating turn's model. A queued
+		// future prompt is applied only once that continuation has settled.
+		if (!carriedPending) {
+			activeAgentTurn.profileBoundaryHandled = true;
+			activeAgentTurn.profileBoundaryFailed = !await applyNextDeferredProfile(ctx);
+		}
 	});
 
-	pi.on("message_start", async (event: any) => {
+	pi.on("message_start", async (event: any, ctx) => {
 		if (event.message?.role !== "user") return;
 		sawTurnLifecycleEvent = true;
 		if (!activeAgentTurn) activeAgentTurn = { carryPendingToNextTurn: false };
+		if (activeAgentTurn.profileBoundaryFailed) return;
+		if (!activeAgentTurn.pending && !activeAgentTurn.profileBoundaryHandled) {
+			activeAgentTurn.profileBoundaryHandled = true;
+			activeAgentTurn.profileBoundaryFailed = !await applyNextDeferredProfile(ctx);
+			if (activeAgentTurn.profileBoundaryFailed) return;
+		}
 		if (!activeAgentTurn.pending) activeAgentTurn.pending = pendingRoutedTurns.shift();
 	});
 
@@ -594,6 +647,8 @@ export function installPiRouter(pi: ExtensionAPI, dependencies: PiRouterDependen
 			spanish: string,
 			fallbackEvents?: string[],
 			answerBlocks?: { english: string[]; spanish: string[] },
+			responseTranslationOutcome?: "bypassed" | "performed" | "fallback",
+			responseTranslationRecommendation?: string,
 		) => {
 			if (!detailsForTurn) return;
 			const completed = extendRouterDetailsAfterCompletion(detailsForTurn, {
@@ -606,6 +661,8 @@ export function installPiRouter(pi: ExtensionAPI, dependencies: PiRouterDependen
 				assistantTimestamp: event.message.timestamp,
 				effectiveThinkingLevel: typeof (pi as any).getThinkingLevel === "function" ? (pi as any).getThinkingLevel() : undefined,
 				fallbackEvents,
+				responseTranslationOutcome,
+				jevResponseRecommendation: responseTranslationRecommendation,
 			});
 			if (lastDetails === detailsForTurn) lastDetails = completed;
 			appendEntry("pi-router-details", completed);
@@ -613,7 +670,7 @@ export function installPiRouter(pi: ExtensionAPI, dependencies: PiRouterDependen
 
 		if (finalBlocks.length === 0) {
 			const diagnostic = "Pi router: final answer had unsupported content.";
-			finishDetails(diagnostic, diagnostic, ["final answer translation skipped: unsupported message content"]);
+			finishDetails(diagnostic, diagnostic, ["final answer translation skipped: unsupported message content"], undefined, "fallback");
 			markPendingTurnConsumed(pendingTurn);
 			return detailsForTurn ? { message: { ...event.message, content: replaceTextContent(event.message.content, diagnostic) } as typeof event.message } : undefined;
 		}
@@ -622,16 +679,62 @@ export function installPiRouter(pi: ExtensionAPI, dependencies: PiRouterDependen
 		const englishAnswer = englishBlocks.join("");
 		if (!englishAnswer.trim()) {
 			const diagnostic = "Pi router: final answer was empty.";
-			finishDetails(diagnostic, diagnostic, ["final answer translation skipped: empty answer"], englishBlocks.length > 1 ? { english: [diagnostic], spanish: [diagnostic] } : undefined);
+			finishDetails(diagnostic, diagnostic, ["final answer translation skipped: empty answer"], englishBlocks.length > 1 ? { english: [diagnostic], spanish: [diagnostic] } : undefined, "fallback");
 			markPendingTurnConsumed(pendingTurn);
 			const replacements = new Map<number, string>(finalBlocks.map((block) => [block.index, diagnostic]));
 			return detailsForTurn ? { message: { ...event.message, content: replaceFinalTextBlocks(event.message.content, replacements) } as typeof event.message } : undefined;
 		}
 
 		if (!pendingTurn.shouldTranslateFinalAnswer) {
-			finishDetails(englishAnswer, englishAnswer, undefined, englishBlocks.length > 1 ? { english: englishBlocks, spanish: englishBlocks } : undefined);
+			finishDetails(englishAnswer, englishAnswer, undefined, englishBlocks.length > 1 ? { english: englishBlocks, spanish: englishBlocks } : undefined, "bypassed");
 			markPendingTurnConsumed(pendingTurn);
 			return undefined;
+		}
+
+		let jevResponseBypass = false;
+		let responseTranslationOutcome: "bypassed" | "performed" | "fallback" = "performed";
+		let responseFallbackReason: string | undefined;
+		let responseRecommendation: string | undefined;
+		let responseCancelled = false;
+		{
+			if (!pendingTurn.jev) {
+				responseFallbackReason = "response decision client unavailable";
+				responseTranslationOutcome = "fallback";
+			} else {
+				try {
+					const decision = await pendingTurn.jev.decideResponse(buildJevResponseState(englishAnswer), { signal: ctx?.signal });
+					responseRecommendation = decision.translation;
+					if (decision.translation === "not_required" && decision.canBypass) {
+						jevResponseBypass = true;
+						responseTranslationOutcome = "bypassed";
+					} else if (decision.translation === "uncertain") {
+						responseTranslationOutcome = "fallback";
+						responseFallbackReason = "response translation decision uncertain";
+					}
+				} catch (error) {
+					if (ctx?.signal?.aborted) {
+						responseCancelled = true;
+						responseTranslationOutcome = "fallback";
+						responseFallbackReason = "response decision cancelled";
+					} else {
+						responseTranslationOutcome = "fallback";
+						responseFallbackReason = `response decision failed: ${describeJevError(error)}`;
+					}
+				}
+			}
+		}
+		if (responseCancelled) {
+			finishDetails(englishAnswer, englishAnswer, responseFallbackReason ? [responseFallbackReason] : undefined, englishBlocks.length > 1 ? { english: englishBlocks, spanish: englishBlocks } : undefined, "fallback", responseRecommendation);
+			markPendingTurnConsumed(pendingTurn);
+			return undefined;
+		}
+		if (jevResponseBypass) {
+			finishDetails(englishAnswer, englishAnswer, undefined, englishBlocks.length > 1 ? { english: englishBlocks, spanish: englishBlocks } : undefined, "bypassed", responseRecommendation);
+			markPendingTurnConsumed(pendingTurn);
+			if (!pendingTurn.rogerSpeech) return undefined;
+			const replacements = new Map<number, string>();
+			finalBlocks.forEach((block) => replacements.set(block.index, buildRogerSpeechResponse(block.text, block.text)));
+			return { message: { ...event.message, content: replaceFinalTextBlocks(event.message.content, replacements) as any } };
 		}
 
 		const translate = dependencies.translateFinalAnswer
@@ -645,14 +748,19 @@ export function installPiRouter(pi: ExtensionAPI, dependencies: PiRouterDependen
 		}
 		const translatedEnglishBlocks = translatedBlocks.map((translated) => translated.englishAnswer);
 		const translatedSpanishBlocks = translatedBlocks.map((translated) => translated.spanishAnswer);
-		const fallbackEvents = translatedBlocks.flatMap((translated, index) => translated.degradedReason
-			? [translatedBlocks.length > 1 ? `block ${index + 1}: ${translated.degradedReason}` : translated.degradedReason]
-			: []);
+		const fallbackEvents = [
+			...(responseFallbackReason ? [responseFallbackReason] : []),
+			...translatedBlocks.flatMap((translated, index) => translated.degradedReason
+				? [translatedBlocks.length > 1 ? `block ${index + 1}: ${translated.degradedReason}` : translated.degradedReason]
+				: []),
+		];
 		finishDetails(
 			translatedEnglishBlocks.join(""),
 			translatedSpanishBlocks.join(""),
 			fallbackEvents.length > 0 ? fallbackEvents : undefined,
 			translatedBlocks.length > 1 ? { english: translatedEnglishBlocks, spanish: translatedSpanishBlocks } : undefined,
+			responseTranslationOutcome,
+			responseRecommendation,
 		);
 		if (fallbackEvents.length > 0) {
 			notify(ctx, `Pi router warning: ${fallbackEvents.join("; ")}; showing original or partially translated answer.`, "warning");
@@ -686,20 +794,30 @@ export function installPiRouter(pi: ExtensionAPI, dependencies: PiRouterDependen
 		}
 
 		if (config.state === "off") {
-			if (rogerSpeech) pendingRoutedTurns.push({ shouldTranslateFinalAnswer: true, rogerSpeech: true });
+			if (rogerSpeech) pendingRoutedTurns.push({ shouldTranslateFinalAnswer: true, rogerSpeech: true, jev: configuredJevClient() });
 			return { action: "continue" };
 		}
 
 		ctx?.ui?.setStatus?.("pi-router", "router:on routing...");
+		const jevConfig = resolveJevConfig(config.jev);
+		const recentConversationSummary = buildRecentConversationSummary(ctx, jevConfig.maxStateChars);
 		const prepared = await prepareRoutedPrompt({
 			prompt: event.text,
 			config,
+			context: recentConversationSummary ? { conversationSummary: recentConversationSummary } : undefined,
 			workModel: selectedWorkModelFromPiContext(ctx),
 			profileState: activeProfile,
+			jev: configuredJevClient(),
 			runtime: { modelRegistry: ctx?.modelRegistry, signal: ctx?.signal },
 			routePrompt: dependencies.routePrompt
 				?? ((prompt, routerModel, context, runtime) => routePromptWithModel(prompt, routerModel, context, runtime)),
-			applyModelProfile: (profile, previous) => applyPiModelProfile(pi, ctx, profile, dependencies, previous),
+			applyModelProfile: (profile, previous) => {
+				if (activeAgentTurn && sawTurnLifecycleEvent) {
+					deferredProfileApplications.push({ profile, previous, ctx });
+					return { applied: true, deferred: true };
+				}
+				return applyPiModelProfile(pi, ctx, profile, dependencies, previous);
+			},
 		});
 
 		if (prepared.action === "continue") {
@@ -707,27 +825,25 @@ export function installPiRouter(pi: ExtensionAPI, dependencies: PiRouterDependen
 			return { action: "continue" };
 		}
 		if (prepared.action === "handled") {
-			const previousProfile = activeProfile;
+			discardDeferredProfile(prepared.profile, ctx);
 			activeProfile = prepared.profile;
 			lastDetails = prepared.details;
 			appendEntry("pi-router-details", prepared.details);
-			if (profileStateChanged(previousProfile, activeProfile)) persistSessionProfile(pi, ctx, activeProfile);
 			notify(ctx, prepared.message, "warning");
 			ctx?.ui?.setStatus?.("pi-router", `router:${config.state} degraded`);
 			return { action: "handled" };
 		}
 
-		const previousProfile = activeProfile;
 		activeProfile = prepared.profile;
 		lastDetails = prepared.details;
 		appendEntry("pi-router-details", prepared.details);
-		if (profileStateChanged(previousProfile, activeProfile)) persistSessionProfile(pi, ctx, activeProfile);
 		pendingRoutedTurns.push({
 			details: prepared.details,
-			shouldTranslateFinalAnswer: prepared.result.sourceLanguage === "es" || prepared.result.sourceLanguage === "mixed"
+			shouldTranslateFinalAnswer: rogerSpeech || prepared.result.sourceLanguage === "es" || prepared.result.sourceLanguage === "mixed"
 				? true
 				: prepared.result.translateFinalAnswer,
 			rogerSpeech,
+			jev: configuredJevClient(),
 		});
 		if (prepared.warning) notify(ctx, prepared.warning, "warning");
 		ctx?.ui?.setStatus?.("pi-router", `router:${config.state} profile:${prepared.profile.label} thinking:${prepared.profile.thinkingLevel}${prepared.warning ? " degraded" : ""}`);

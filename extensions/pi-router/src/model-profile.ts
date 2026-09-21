@@ -1,7 +1,7 @@
 import type { WorkModelInfo } from "./config.ts";
 
-export type ModelProfileId = "luna-max" | "astra-low" | "astra-medium";
-export type ModelProfileSource = "default" | "prompt";
+export type ModelProfileId = "luna-max" | "terra-medium" | "astra-low" | "astra-medium";
+export type ModelProfileSource = "default" | "prompt" | "automatic";
 export type ProfileThinkingLevel = "low" | "medium" | "high" | "max";
 
 export interface ModelProfile {
@@ -30,6 +30,14 @@ export const DEFAULT_MODEL_PROFILE: ModelProfile = Object.freeze({
 	thinkingLevel: "max",
 });
 
+export const TERRA_MEDIUM_PROFILE: ModelProfile = Object.freeze({
+	id: "terra-medium",
+	label: "Terra Medium",
+	provider: "openai-codex",
+	model: "gpt-5.6-terra",
+	thinkingLevel: "medium",
+});
+
 export const ASTRA_LOW_PROFILE: ModelProfile = Object.freeze({
 	id: "astra-low",
 	label: "Vega",
@@ -48,11 +56,12 @@ export const ASTRA_MEDIUM_PROFILE: ModelProfile = Object.freeze({
 
 export const MODEL_PROFILES: Readonly<Record<ModelProfileId, ModelProfile>> = Object.freeze({
 	[DEFAULT_MODEL_PROFILE.id]: DEFAULT_MODEL_PROFILE,
+	[TERRA_MEDIUM_PROFILE.id]: TERRA_MEDIUM_PROFILE,
 	[ASTRA_LOW_PROFILE.id]: ASTRA_LOW_PROFILE,
 	[ASTRA_MEDIUM_PROFILE.id]: ASTRA_MEDIUM_PROFILE,
 } as Record<ModelProfileId, ModelProfile>);
 
-const MODEL_PROFILE_DIRECTIVE = /^\s*(Use Astra:|Usa Astra:|Use Vega:|Usa Vega:|Use Default:|Usa el modelo predeterminado:)/i;
+const MODEL_PROFILE_DIRECTIVE = /^\s*(Use Terra:|Usa Terra:|Use Astra:|Usa Astra:|Use Vega:|Usa Vega:|Use Default:|Usa el modelo predeterminado:)/i;
 
 /**
  * Recognize only the supported leading, colon-delimited profile controls.
@@ -70,7 +79,9 @@ export function parseModelProfilePrompt(prompt: string): ParsedModelProfilePromp
 		return { prompt };
 	}
 
-	const profile: ModelProfileId = directive === "use astra:" || directive === "usa astra:"
+	const profile: ModelProfileId = directive === "use terra:" || directive === "usa terra:"
+		? "terra-medium"
+		: directive === "use astra:" || directive === "usa astra:"
 		? "astra-medium"
 		: directive === "use vega:" || directive === "usa vega:"
 			? "astra-low"
@@ -120,6 +131,7 @@ export interface ModelProfileRuntime {
 
 export interface ModelProfileApplicationResult {
 	applied: boolean;
+	deferred?: boolean;
 	error?: string;
 	effectiveModel?: WorkModelInfo;
 	effectiveThinkingLevel?: string;

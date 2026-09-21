@@ -10,6 +10,17 @@ import {
 } from "../src/model-profile.ts";
 
 describe("router model profile policy", () => {
+	it("maps English and Spanish Terra directives to the per-prompt Terra profile", () => {
+		for (const prefix of ["Use Terra:", "Usa Terra:"]) {
+			const parsed = parseModelProfilePrompt(`${prefix} implement the integration`);
+			assert.equal(parsed.prompt, "implement the integration");
+			const profile = applyModelProfileDirective(createDefaultModelProfileState(), parsed);
+			assert.equal(profile.id, "terra-medium");
+			assert.equal(profile.provider, "openai-codex");
+			assert.equal(profile.model, "gpt-5.6-terra");
+			assert.equal(profile.thinkingLevel, "medium");
+		}
+	});
 	it("defines Luna Max as the default profile with Astra Medium and Vega alternates", () => {
 		assert.deepEqual(DEFAULT_MODEL_PROFILE, {
 			id: "luna-max",

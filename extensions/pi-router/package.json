@@ -5,10 +5,13 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "test": "tsx --test tests/*.test.ts"
+    "test": "tsx --test tests/*.test.ts",
+    "evaluate:jev": "tsx scripts/evaluate-jev.ts"
   },
   "pi": {
-    "extensions": ["./src/index.ts"]
+    "extensions": [
+      "./src/index.ts"
+    ]
   },
   "peerDependencies": {
     "@earendil-works/pi-ai": ">=0.85.1",
@@ -19,5 +22,8 @@
     "@types/node": "^26.4.1",
     "tsx": "^4.20.0",
     "typescript": "^5.8.0"
+  },
+  "dependencies": {
+    "@typesafe-ai/sdk": "0.6.0"
   }
 }

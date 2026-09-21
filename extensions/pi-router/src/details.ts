@@ -3,6 +3,7 @@ import { createDefaultModelProfileState, type ModelProfileState } from "./model-
 import type { RouterMetadata } from "./router-model.ts";
 
 export type RouterDetailsPhase = "pre-dispatch" | "complete";
+export type RouterTranslationOutcome = "bypassed" | "performed" | "fallback";
 
 export interface RouterDetails {
 	originalPrompt: string;
@@ -22,6 +23,16 @@ export interface RouterDetails {
 	requestedProfileModel?: string;
 	requestedProfileThinkingLevel?: ModelProfileState["thinkingLevel"];
 	profileApplicationError?: string;
+	profileApplicationDeferred?: boolean;
+	inputTranslationOutcome?: RouterTranslationOutcome;
+	responseTranslationOutcome?: RouterTranslationOutcome;
+	jevInputRecommendation?: string;
+	jevResponseRecommendation?: string;
+	jevModel?: string;
+	jevDurationMs?: number;
+	jevPolicyRevision?: string;
+	jevCatalogRevision?: string;
+	jevFallbackReasons?: string[];
 	englishAnswer?: string;
 	spanishAnswer?: string;
 	/** Per-content-block answers preserve boundaries for transient context restoration. */
@@ -47,6 +58,8 @@ export interface CompletedRouterDetails {
 	assistantTimestamp?: number;
 	effectiveThinkingLevel?: string;
 	fallbackEvents?: string[];
+	responseTranslationOutcome?: RouterTranslationOutcome;
+	jevResponseRecommendation?: string;
 }
 
 export interface RouterProfileDetailsOptions {
@@ -54,6 +67,14 @@ export interface RouterProfileDetailsOptions {
 	effectiveModel?: WorkModelInfo;
 	effectiveThinkingLevel?: string;
 	profileApplicationError?: string;
+	profileApplicationDeferred?: boolean;
+	inputTranslationOutcome?: RouterTranslationOutcome;
+	jevInputRecommendation?: string;
+	jevModel?: string;
+	jevDurationMs?: number;
+	jevPolicyRevision?: string;
+	jevCatalogRevision?: string;
+	jevFallbackReasons?: string[];
 }
 
 export function createRouterDetailsEntry(
@@ -98,6 +119,14 @@ export function createRouterDetailsEntry(
 			...(options.requestedProfile && requestedProfile ? { requestedProfileThinkingLevel: options.requestedProfile.thinkingLevel } : {}),
 			...(options.effectiveThinkingLevel ? { effectiveThinkingLevel: options.effectiveThinkingLevel } : {}),
 			...(options.profileApplicationError ? { profileApplicationError: options.profileApplicationError } : {}),
+			...(options.profileApplicationDeferred ? { profileApplicationDeferred: true } : {}),
+			...(options.inputTranslationOutcome ? { inputTranslationOutcome: options.inputTranslationOutcome } : {}),
+			...(options.jevInputRecommendation ? { jevInputRecommendation: options.jevInputRecommendation } : {}),
+			...(options.jevModel ? { jevModel: options.jevModel } : {}),
+			...(options.jevDurationMs !== undefined ? { jevDurationMs: options.jevDurationMs } : {}),
+			...(options.jevPolicyRevision ? { jevPolicyRevision: options.jevPolicyRevision } : {}),
+			...(options.jevCatalogRevision ? { jevCatalogRevision: options.jevCatalogRevision } : {}),
+			...(options.jevFallbackReasons?.length ? { jevFallbackReasons: options.jevFallbackReasons } : {}),
 			...(metadata.fallback ? { fallbackEvents: [metadata.fallback] } : {}),
 		},
 	};
@@ -123,6 +152,8 @@ export function extendRouterDetailsAfterCompletion(
 			...(completion.assistantTimestamp !== undefined ? { assistantTimestamp: completion.assistantTimestamp } : {}),
 			...(completion.effectiveThinkingLevel ? { effectiveThinkingLevel: completion.effectiveThinkingLevel } : {}),
 			...(completion.fallbackEvents ? { fallbackEvents: completion.fallbackEvents } : {}),
+			...(completion.responseTranslationOutcome ? { responseTranslationOutcome: completion.responseTranslationOutcome } : {}),
+			...(completion.jevResponseRecommendation ? { jevResponseRecommendation: completion.jevResponseRecommendation } : {}),
 		},
 	};
 }

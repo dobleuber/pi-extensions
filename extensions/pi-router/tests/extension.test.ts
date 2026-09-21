@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import { DEFAULT_ROUTER_CONFIG } from "../src/config.ts";
 import piRouterExtension, { installPiRouter } from "../src/index.ts";
 
+// Offline tests must never use the developer's live TypeSafe credential.
+delete process.env.TYPESAFE_API_KEY;
 const DEFAULT_TEST_CONFIG = DEFAULT_ROUTER_CONFIG;
 
 describe("pi-router extension entrypoint", () => {
@@ -45,6 +47,113 @@ describe("pi-router extension entrypoint", () => {
 		assert.deepEqual(notifications, [
 			"router:off profile:Luna Max profileSource:default profileModel:openai-codex/gpt-5.6-luna profileThinking:max routerModel:openai-codex/gpt-5.6-luna workModel:unknown",
 		]);
+	});
+
+	it("does not ask Jev for decisions while the router is off", async () => {
+		const handlers = new Map<string, Array<(event: any, ctx: any) => Promise<any>>>();
+		let inputDecisions = 0;
+		let responseDecisions = 0;
+		const pi = {
+			registerCommand() {},
+			on(event: string, handler: (event: any, ctx: any) => Promise<any>) { handlers.set(event, [...(handlers.get(event) ?? []), handler]); },
+			setThinkingLevel() {},
+			appendEntry() {},
+		};
+		const ctx = { ui: { notify() {}, setStatus() {} } };
+		installPiRouter(pi as any, {
+			config: { ...DEFAULT_TEST_CONFIG, state: "off" },
+			stateStore: { loadState: () => "off", saveState() {} },
+			jev: {
+				decideInput: async () => { inputDecisions += 1; throw new Error("disabled"); },
+				decideResponse: async () => { responseDecisions += 1; throw new Error("disabled"); },
+			},
+			routePrompt: async (prompt: string) => ({ englishPrompt: prompt, sourceLanguage: "en", thinkingLevel: "medium", translateFinalAnswer: false }),
+		});
+		await handlers.get("input")![0]({ text: "inspect the router", source: "interactive" }, ctx);
+		assert.equal(inputDecisions, 0);
+		assert.equal(responseDecisions, 0);
+	});
+
+	it("sends only a bounded recent conversation summary to Jev", async () => {
+		const handlers = new Map<string, Array<(event: any, ctx: any) => Promise<any>>>();
+		let receivedState: any;
+		const pi = {
+			registerCommand() {},
+			on(event: string, handler: (event: any, ctx: any) => Promise<any>) { handlers.set(event, [...(handlers.get(event) ?? []), handler]); },
+			setThinkingLevel() {},
+			appendEntry() {},
+		};
+		const ctx: any = {
+			ui: { notify() {}, setStatus() {} },
+			sessionManager: {
+				getBranch: () => Array.from({ length: 20 }, (_, index) => ({ type: "message", message: { role: index % 2 ? "assistant" : "user", content: `old-${index}-` + "x".repeat(100) } })),
+			},
+		};
+		installPiRouter(pi as any, {
+			config: { ...DEFAULT_TEST_CONFIG, state: "on", jev: { ...DEFAULT_TEST_CONFIG.jev!, maxStateChars: 180 } },
+			jev: {
+				decideInput: async (state: any) => {
+					receivedState = state;
+					return {
+						model: "jev-1.13", usage: { input_tokens: 1, output_tokens: 0 },
+						profile: { id: "luna-max", label: "Luna Max", provider: "openai-codex", model: "gpt-5.6-luna", thinkingLevel: "max", source: "automatic" as const },
+						profileKey: "luna" as const, profileConfidence: 0.9, profileProbabilities: { luna: 0.9, vega: 0.05, astra: 0.05 },
+						inputTranslation: "not_required" as const, inputTranslationConfidence: 0.99,
+						sourceLanguage: "en" as const, sourceLanguageConfidence: 0.99, canBypassInputTranslation: true,
+						metadata: { model: "jev-1.13", inputTokens: 1, outputTokens: 0 },
+					};
+				},
+				decideResponse: async () => { throw new Error("not used"); },
+			},
+			routePrompt: async () => { throw new Error("input translator must be bypassed"); },
+		});
+		await handlers.get("input")![0]({ text: "follow up", source: "interactive" }, ctx);
+		assert.equal(receivedState.prompt, "follow up");
+		assert.ok(receivedState.conversationSummary.length <= 148);
+		assert.doesNotMatch(receivedState.conversationSummary, /old-0/);
+	});
+
+	it("uses response recommendations directly without an activation flag", async () => {
+		const handlers = new Map<string, Array<(event: any, ctx: any) => Promise<any>>>();
+		const entries: any[] = [];
+		let responseCalls = 0;
+		let translationCalls = 0;
+		const pi = {
+			registerCommand() {},
+			on(event: string, handler: (event: any, ctx: any) => Promise<any>) { handlers.set(event, [...(handlers.get(event) ?? []), handler]); },
+			setThinkingLevel() {},
+			appendEntry(type: string, data: any) { entries.push([type, data]); },
+		};
+		const ctx = { ui: { notify() {}, setStatus() {} } };
+		installPiRouter(pi as any, {
+			config: { ...DEFAULT_TEST_CONFIG, state: "on", jev: { ...DEFAULT_TEST_CONFIG.jev! } },
+			jev: {
+				decideInput: async () => ({
+					model: "jev-1.13", usage: { input_tokens: 1, output_tokens: 0 },
+					profile: { id: "astra-medium", label: "Astra Medium", provider: "openai-codex", model: "gpt-6-astra", thinkingLevel: "medium", source: "automatic" as const },
+					profileKey: "astra" as const, profileConfidence: 0.99, profileProbabilities: { luna: 0.01, vega: 0, astra: 0.99 },
+					inputTranslation: "required" as const, inputTranslationConfidence: 0.99,
+					sourceLanguage: "es" as const, sourceLanguageConfidence: 0.99, canBypassInputTranslation: false,
+					metadata: { model: "jev-1.13", inputTokens: 1, outputTokens: 0 },
+				}),
+				decideResponse: async () => {
+					responseCalls += 1;
+					return { model: "jev-1.13", usage: { input_tokens: 1, output_tokens: 0 }, translation: "not_required" as const, confidence: 0.99, probabilities: { required: 0.01, not_required: 0.99, uncertain: 0 }, canBypass: true, metadata: { model: "jev-1.13", inputTokens: 1, outputTokens: 0 } };
+				},
+			},
+			routePrompt: async () => ({ englishPrompt: "Answer.", sourceLanguage: "es", thinkingLevel: "medium", translateFinalAnswer: true }),
+			translateFinalAnswer: async (answer: string) => {
+				translationCalls += 1;
+				return { englishAnswer: answer, spanishAnswer: "Respuesta." };
+			},
+		});
+		await handlers.get("input")![0]({ text: "responde", source: "interactive" }, ctx);
+		const result = await handlers.get("message_end")![0]({ message: { role: "assistant", content: [{ type: "text", text: "Answer." }] } }, ctx);
+		assert.equal(responseCalls, 1);
+		assert.equal(translationCalls, 0);
+		assert.equal(result, undefined);
+		assert.equal(entries.at(-1)![1].details.jevResponseRecommendation, "not_required");
+		assert.equal(entries.at(-1)![1].details.responseTranslationOutcome, "bypassed");
 	});
 
 	it("registers a configurable router-details shortcut and command", async () => {
@@ -185,6 +294,159 @@ describe("pi-router extension entrypoint", () => {
 		assert.equal(appended.at(-1)![1].phase, "complete");
 		assert.equal(appended.at(-1)![1].details.englishAnswer, "Done.");
 		assert.equal(appended.at(-1)![1].details.spanishAnswer, "Listo.");
+	});
+
+	it("uses Jev to skip response translation when the final response is already Spanish", async () => {
+		const commands = new Map<string, { handler: (args: string, ctx: any) => Promise<void> }>();
+		const handlers = new Map<string, Array<(event: any, ctx: any) => Promise<any>>>();
+		let translationCalls = 0;
+		let responseDecisionCalls = 0;
+		let responseState = "";
+		const entries: any[] = [];
+		const pi = {
+			registerCommand(name: string, command: { handler: (args: string, ctx: any) => Promise<void> }) { commands.set(name, command); },
+			on(event: string, handler: (event: any, ctx: any) => Promise<any>) { handlers.set(event, [...(handlers.get(event) ?? []), handler]); },
+			setThinkingLevel() {},
+			appendEntry(type: string, data: any) { entries.push([type, data]); },
+		};
+		const ctx = { ui: { notify() {}, setStatus() {} } };
+		installPiRouter(pi as any, {
+			config: {
+				...DEFAULT_TEST_CONFIG,
+				jev: { ...DEFAULT_TEST_CONFIG.jev! },
+			},
+			jev: {
+				decideInput: async () => ({
+					model: "jev-1.13",
+					usage: { input_tokens: 10, output_tokens: 0 },
+					profile: { id: "luna-max", label: "Luna Max", provider: "openai-codex", model: "gpt-5.6-luna", thinkingLevel: "max", source: "automatic" as const },
+					profileKey: "luna" as const,
+					profileConfidence: 0.9,
+					profileProbabilities: { luna: 0.9, vega: 0.06, astra: 0.04 },
+					inputTranslation: "required" as const,
+					inputTranslationConfidence: 0.99,
+					sourceLanguage: "es" as const,
+					sourceLanguageConfidence: 0.99,
+					canBypassInputTranslation: false,
+					metadata: { model: "jev-1.13", inputTokens: 10, outputTokens: 0 },
+				}),
+				decideResponse: async (response: string) => {
+					responseState = response;
+					responseDecisionCalls += 1;
+					return {
+						model: "jev-1.13",
+						usage: { input_tokens: 8, output_tokens: 0 },
+						translation: "not_required" as const,
+						confidence: 0.98,
+						probabilities: { required: 0.01, not_required: 0.98, uncertain: 0.01 },
+						canBypass: true,
+						metadata: { model: "jev-1.13", inputTokens: 8, outputTokens: 0 },
+					};
+				},
+			},
+			routePrompt: async () => ({ englishPrompt: "Finish the task.", sourceLanguage: "es", thinkingLevel: "medium", translateFinalAnswer: true }),
+			translateFinalAnswer: async (answer: string) => {
+				translationCalls += 1;
+				return { englishAnswer: answer, spanishAnswer: "No debería llamarse." };
+			},
+		});
+		await commands.get("router")!.handler("on", ctx);
+		await handlers.get("input")![0]({ text: "termina la tarea", source: "interactive" }, ctx);
+
+		const result = await handlers.get("message_end")![0]({
+			message: { role: "assistant", content: [{ type: "text", text: "La tarea está terminada.\n\n```ts\nconst secret = 1;\n```" }] },
+		}, ctx);
+
+		assert.equal(responseDecisionCalls, 1);
+		assert.equal(translationCalls, 0);
+		assert.equal(result, undefined);
+		assert.match(responseState, /La tarea está terminada/);
+		assert.doesNotMatch(responseState, /const secret/);
+		assert.equal(entries.at(-1)![1].details.inputTranslationOutcome, "performed");
+		assert.equal(entries.at(-1)![1].details.responseTranslationOutcome, "bypassed");
+		assert.equal(entries.at(-1)![1].details.jevModel, "jev-1.13");
+	});
+
+	it("keeps Roger display and speech envelopes when Jev bypasses response translation", async () => {
+		const handlers = new Map<string, Array<(event: any, ctx: any) => Promise<any>>>();
+		const pi = {
+			registerCommand() {},
+			on(event: string, handler: (event: any, ctx: any) => Promise<any>) { handlers.set(event, [...(handlers.get(event) ?? []), handler]); },
+			setThinkingLevel() {},
+			appendEntry() {},
+		};
+		const ctx = { ui: { notify() {}, setStatus() {} } };
+		installPiRouter(pi as any, {
+			config: { ...DEFAULT_TEST_CONFIG, jev: { ...DEFAULT_TEST_CONFIG.jev! } },
+			jev: {
+				decideInput: async () => ({
+					model: "jev-1.13", usage: { input_tokens: 1, output_tokens: 0 },
+					profile: { id: "luna-max", label: "Luna Max", provider: "openai-codex", model: "gpt-5.6-luna", thinkingLevel: "max", source: "automatic" as const },
+					profileKey: "luna" as const, profileConfidence: 0.9, profileProbabilities: { luna: 0.9, vega: 0.05, astra: 0.05 },
+					inputTranslation: "not_required" as const, inputTranslationConfidence: 0.99,
+					sourceLanguage: "en" as const, sourceLanguageConfidence: 0.99, canBypassInputTranslation: true,
+					metadata: { model: "jev-1.13", inputTokens: 1, outputTokens: 0 },
+				}),
+				decideResponse: async () => ({
+					model: "jev-1.13", usage: { input_tokens: 1, output_tokens: 0 },
+					translation: "not_required" as const, confidence: 0.99,
+					probabilities: { required: 0.01, not_required: 0.99, uncertain: 0 }, canBypass: true,
+					metadata: { model: "jev-1.13", inputTokens: 1, outputTokens: 0 },
+				}),
+			},
+			routePrompt: async () => { throw new Error("input translator must not run"); },
+			translateFinalAnswer: async () => { throw new Error("translator must not run"); },
+		});
+		await handlers.get("input")![0]({
+			text: "responde",
+			source: "roger",
+			metadata: { source: "roger", speech: { enabled: true, language: "es" } },
+		}, ctx);
+		const result = await handlers.get("message_end")![0]({ message: { role: "assistant", content: [{ type: "text", text: "Ya está listo." }] } }, ctx);
+		assert.deepEqual(JSON.parse(result.message.content[0].text), {
+			display_text: "Ya está listo.",
+			speech_text: "Ya está listo.",
+			speech_language: "es",
+			speech_source: "pi-router",
+		});
+	});
+
+	it("keeps the generative response translator when Jev response gating fails", async () => {
+		const handlers = new Map<string, Array<(event: any, ctx: any) => Promise<any>>>();
+		const entries: any[] = [];
+		let translationCalls = 0;
+		const pi = {
+			registerCommand() {},
+			on(event: string, handler: (event: any, ctx: any) => Promise<any>) { handlers.set(event, [...(handlers.get(event) ?? []), handler]); },
+			setThinkingLevel() {},
+			appendEntry(type: string, data: any) { entries.push([type, data]); },
+		};
+		const ctx = { ui: { notify() {}, setStatus() {} } };
+		installPiRouter(pi as any, {
+			config: { ...DEFAULT_TEST_CONFIG, jev: { ...DEFAULT_TEST_CONFIG.jev! } },
+			jev: {
+				decideInput: async () => ({
+					model: "jev-1.13", usage: { input_tokens: 1, output_tokens: 0 },
+					profile: { id: "luna-max", label: "Luna Max", provider: "openai-codex", model: "gpt-5.6-luna", thinkingLevel: "max", source: "automatic" as const },
+					profileKey: "luna" as const, profileConfidence: 0.9, profileProbabilities: { luna: 0.9, vega: 0.05, astra: 0.05 },
+					inputTranslation: "required" as const, inputTranslationConfidence: 0.99,
+					sourceLanguage: "es" as const, sourceLanguageConfidence: 0.99, canBypassInputTranslation: false,
+					metadata: { model: "jev-1.13", inputTokens: 1, outputTokens: 0 },
+				}),
+				decideResponse: async () => { throw new Error("invalid response decision"); },
+			},
+			routePrompt: async () => ({ englishPrompt: "Answer.", sourceLanguage: "es", thinkingLevel: "medium", translateFinalAnswer: true }),
+			translateFinalAnswer: async (answer: string) => {
+				translationCalls += 1;
+				return { englishAnswer: answer, spanishAnswer: "Listo." };
+			},
+		});
+		await handlers.get("input")![0]({ text: "responde", source: "interactive" }, ctx);
+		const result = await handlers.get("message_end")![0]({ message: { role: "assistant", content: [{ type: "text", text: "Answer." }] } }, ctx);
+		assert.equal(translationCalls, 1);
+		assert.deepEqual(result.message.content, [{ type: "text", text: "Listo." }]);
+		assert.equal(entries.at(-1)![1].details.responseTranslationOutcome, "fallback");
+		assert.match(entries.at(-1)![1].details.fallbackEvents[0], /invalid response decision/);
 	});
 
 	it("translates only final Codex text blocks and restores them in transient context", async () => {
@@ -663,8 +925,149 @@ describe("pi-router extension entrypoint", () => {
 		]);
 	});
 
+	it("does not apply a queued profile until the active tool continuation has settled", async () => {
+		const commands = new Map<string, { handler: (args: string, ctx: any) => Promise<void> }>();
+		const handlers = new Map<string, Array<(event: any, ctx: any) => Promise<any>>>();
+		let currentModel: any = { provider: "openai-codex", id: "gpt-5.6-luna" };
+		let currentThinking = "max";
+		const pi = {
+			registerCommand(name: string, command: { handler: (args: string, ctx: any) => Promise<void> }) { commands.set(name, command); },
+			on(event: string, handler: (event: any, ctx: any) => Promise<any>) { handlers.set(event, [...(handlers.get(event) ?? []), handler]); },
+			setModel(model: any) { currentModel = model; return true; },
+			getThinkingLevel() { return currentThinking; },
+			setThinkingLevel(level: string) { currentThinking = level; },
+			appendEntry() {},
+		};
+		const ctx: any = {
+			get model() { return currentModel; },
+			modelRegistry: { find(provider: string, model: string) { return { provider, id: model }; } },
+			ui: { notify() {}, setStatus() {} },
+		};
+		installPiRouter(pi as any, {
+			config: { ...DEFAULT_TEST_CONFIG, jev: { ...DEFAULT_TEST_CONFIG.jev! } },
+			jev: {
+				decideInput: async () => ({
+					model: "jev-1.13", usage: { input_tokens: 1, output_tokens: 0 },
+					profile: { id: "luna-max", label: "Luna Max", provider: "openai-codex", model: "gpt-5.6-luna", thinkingLevel: "max", source: "automatic" as const },
+					profileKey: "luna" as const, profileConfidence: 0.9, profileProbabilities: { luna: 0.9, vega: 0.05, astra: 0.05 },
+					inputTranslation: "not_required" as const, inputTranslationConfidence: 0.99,
+					sourceLanguage: "en" as const, sourceLanguageConfidence: 0.99, canBypassInputTranslation: true,
+					metadata: { model: "jev-1.13", inputTokens: 1, outputTokens: 0 },
+				}),
+				decideResponse: async () => { throw new Error("not used"); },
+			},
+			routePrompt: async (prompt: string) => ({ englishPrompt: prompt, sourceLanguage: "en" as const, thinkingLevel: "medium" as const, translateFinalAnswer: false }),
+		});
+		await commands.get("router")!.handler("on", ctx);
+		await handlers.get("input")![0]({ text: "start the task", source: "interactive" }, ctx);
+		await handlers.get("turn_start")![0]({ turnIndex: 0, timestamp: 1 }, ctx);
+		await handlers.get("message_start")![0]({ message: { role: "user", content: [{ type: "text", text: "start the task" }] } }, ctx);
+
+		await handlers.get("input")![0]({ text: "Use Astra: continue after the tool", source: "interactive" }, ctx);
+		assert.deepEqual(currentModel, { provider: "openai-codex", id: "gpt-5.6-luna" });
+		await handlers.get("turn_end")![0]({ message: { role: "assistant", stopReason: "toolUse" }, toolResults: [{ role: "toolResult" }] }, ctx);
+		await handlers.get("turn_start")![0]({ turnIndex: 1, timestamp: 2 }, ctx);
+		assert.deepEqual(currentModel, { provider: "openai-codex", id: "gpt-5.6-luna" });
+		await handlers.get("turn_end")![0]({ message: { role: "assistant", stopReason: "stop" }, toolResults: [] }, ctx);
+		await handlers.get("turn_start")![0]({ turnIndex: 2, timestamp: 3 }, ctx);
+		assert.deepEqual(currentModel, { provider: "openai-codex", id: "gpt-6-astra" });
+		assert.equal(currentThinking, "medium");
+		// A second queued prompt must not replace the first at message_start.
+		await handlers.get("input")![0]({ text: "Use Default: another task", source: "interactive" }, ctx);
+		await handlers.get("message_start")![0]({ message: { role: "user" } }, ctx);
+		assert.equal(currentModel.id, "gpt-6-astra");
+		assert.equal(currentThinking, "medium");
+	});
+
+	it("aborts a receiving turn when a deferred profile cannot be applied", async () => {
+		const handlers = new Map<string, Array<(event: any, ctx: any) => Promise<any>>>();
+		let currentModel: any = { provider: "openai-codex", id: "gpt-5.6-luna" };
+		let aborts = 0;
+		const notifications: string[] = [];
+		const pi = {
+			registerCommand() {},
+			on(event: string, handler: (event: any, ctx: any) => Promise<any>) { handlers.set(event, [...(handlers.get(event) ?? []), handler]); },
+			setModel(model: any) { currentModel = model; return true; },
+			setThinkingLevel() {},
+			appendEntry() {},
+		};
+		const ctx: any = {
+			get model() { return currentModel; },
+			modelRegistry: { find(provider: string, model: string) { return { provider, id: model }; } },
+			abort() { aborts += 1; },
+			ui: { notify(message: string) { notifications.push(message); }, setStatus() {} },
+		};
+		installPiRouter(pi as any, {
+			config: { ...DEFAULT_TEST_CONFIG, state: "on", jev: { ...DEFAULT_TEST_CONFIG.jev! } },
+			jev: {
+				decideInput: async () => ({
+					model: "jev-1.13", usage: { input_tokens: 1, output_tokens: 0 },
+					profile: { id: "luna-max", label: "Luna Max", provider: "openai-codex", model: "gpt-5.6-luna", thinkingLevel: "max", source: "automatic" as const },
+					profileKey: "luna" as const, profileConfidence: 0.9, profileProbabilities: { luna: 0.9, vega: 0.05, astra: 0.05 },
+					inputTranslation: "not_required" as const, inputTranslationConfidence: 0.99,
+					sourceLanguage: "en" as const, sourceLanguageConfidence: 0.99, canBypassInputTranslation: true,
+					metadata: { model: "jev-1.13", inputTokens: 1, outputTokens: 0 },
+				}),
+				decideResponse: async () => { throw new Error("not used"); },
+			},
+			applyModelProfile: async (profile) => profile.id === "astra-medium" ? { applied: false, error: "Astra unavailable" } : { applied: true },
+			routePrompt: async (prompt: string) => ({ englishPrompt: prompt, sourceLanguage: "en" as const, thinkingLevel: "medium" as const, translateFinalAnswer: false }),
+		});
+		await handlers.get("input")![0]({ text: "start", source: "interactive" }, ctx);
+		await handlers.get("turn_start")![0]({}, ctx);
+		await handlers.get("message_start")![0]({ message: { role: "user", content: [{ type: "text", text: "start" }] } }, ctx);
+		await handlers.get("input")![0]({ text: "Use Astra: continue", source: "interactive" }, ctx);
+		await handlers.get("turn_end")![0]({ message: { role: "assistant", stopReason: "toolUse" }, toolResults: [{ role: "toolResult" }] }, ctx);
+		await handlers.get("turn_start")![0]({}, ctx);
+		await handlers.get("turn_end")![0]({ message: { role: "assistant", stopReason: "stop" }, toolResults: [] }, ctx);
+		await handlers.get("turn_start")![0]({}, ctx);
+
+		assert.deepEqual(currentModel, { provider: "openai-codex", id: "gpt-5.6-luna" });
+		assert.equal(aborts, 1);
+		assert.match(notifications.at(-1)!, /Astra unavailable/);
+	});
+
+	it("does not persist Jev profile choices into legacy session state", async () => {
+		const handlers = new Map<string, Array<(event: any, ctx: any) => Promise<any>>>();
+		const profileEntries: any[] = [];
+		const savedStates: string[] = [];
+		let currentModel: any = { provider: "openai-codex", id: "gpt-5.6-luna" };
+		const pi = {
+			registerCommand() {},
+			on(event: string, handler: (event: any, ctx: any) => Promise<any>) { handlers.set(event, [...(handlers.get(event) ?? []), handler]); },
+			setModel(model: any) { currentModel = model; return true; },
+			setThinkingLevel() {},
+			appendEntry(type: string, data: any) { if (type === "pi-router-profile") profileEntries.push(data); },
+		};
+		const ctx: any = {
+			get model() { return currentModel; },
+			modelRegistry: { find(provider: string, model: string) { return { provider, id: model }; } },
+			ui: { notify() {}, setStatus() {} },
+		};
+		installPiRouter(pi as any, {
+			config: { ...DEFAULT_TEST_CONFIG, state: "on", jev: { ...DEFAULT_TEST_CONFIG.jev! } },
+			stateStore: { loadState: () => "on", saveState: (state) => savedStates.push(state) },
+			jev: {
+				decideInput: async () => ({
+					model: "jev-1.13", usage: { input_tokens: 1, output_tokens: 0 },
+					profile: { id: "luna-max", label: "Luna Max", provider: "openai-codex", model: "gpt-5.6-luna", thinkingLevel: "max", source: "automatic" as const },
+					profileKey: "luna" as const, profileConfidence: 0.9, profileProbabilities: { luna: 0.9, vega: 0.05, astra: 0.05 },
+					inputTranslation: "not_required" as const, inputTranslationConfidence: 0.99,
+					sourceLanguage: "en" as const, sourceLanguageConfidence: 0.99, canBypassInputTranslation: true,
+					metadata: { model: "jev-1.13", inputTokens: 1, outputTokens: 0 },
+				}),
+				decideResponse: async () => { throw new Error("not used"); },
+			},
+			routePrompt: async (prompt: string) => ({ englishPrompt: prompt, sourceLanguage: "en" as const, thinkingLevel: "medium" as const, translateFinalAnswer: false }),
+		});
+		await handlers.get("input")![0]({ text: "Use Astra: inspect this", source: "interactive" }, ctx);
+		assert.deepEqual(currentModel, { provider: "openai-codex", id: "gpt-6-astra" });
+		assert.deepEqual(profileEntries, []);
+		assert.deepEqual(savedStates, []);
+	});
+
 	describe("session-scoped model profiles", () => {
-		it("applies explicit Astra, retains it across prompts and router toggles, and resets to Luna", async () => {
+		it("applies explicit Astra only to its prompt and uses Luna fallback for later prompts", async () => {
 			const commands = new Map<string, { handler: (args: string, ctx: any) => Promise<void> }>();
 			const handlers = new Map<string, Array<(event: any, ctx: any) => Promise<any>>>();
 			const routedPrompts: string[] = [];
@@ -708,18 +1111,18 @@ describe("pi-router extension entrypoint", () => {
 			assert.equal(currentThinking, "medium");
 
 			await handlers.get("input")![0]({ text: "continúa la investigación", source: "interactive" }, ctx);
-			assert.deepEqual(currentModel, { provider: "openai-codex", id: "gpt-6-astra" });
-			assert.equal(currentThinking, "medium");
+			assert.deepEqual(currentModel, { provider: "openai-codex", id: "gpt-5.6-luna" });
+			assert.equal(currentThinking, "max");
 
 			await commands.get("router")!.handler("off", ctx);
 			currentModel = { provider: "native", id: "native-model" };
 			currentThinking = "low";
 			await commands.get("router")!.handler("on", ctx);
-			assert.deepEqual(currentModel, { provider: "openai-codex", id: "gpt-6-astra" });
-			assert.equal(currentThinking, "medium");
+			assert.deepEqual(currentModel, { provider: "openai-codex", id: "gpt-5.6-luna" });
+			assert.equal(currentThinking, "max");
 			await handlers.get("input")![0]({ text: "sigue con eso", source: "interactive" }, ctx);
-			assert.deepEqual(currentModel, { provider: "openai-codex", id: "gpt-6-astra" });
-			assert.equal(currentThinking, "medium");
+			assert.deepEqual(currentModel, { provider: "openai-codex", id: "gpt-5.6-luna" });
+			assert.equal(currentThinking, "max");
 
 			const reset = await handlers.get("input")![0]({ text: "Usa el modelo predeterminado: termina", source: "interactive" }, ctx);
 			assert.deepEqual(reset, { action: "transform", text: "English: termina" });
@@ -763,7 +1166,7 @@ describe("pi-router extension entrypoint", () => {
 			assert.equal(settingsWrites, 0);
 		});
 
-		it("restores a selected profile when resuming the same session", async () => {
+		it("does not persist or restore a per-prompt profile when resuming", async () => {
 			const sessionEntries: any[] = [];
 			const commands = new Map<string, { handler: (args: string, ctx: any) => Promise<void> }>();
 			const handlers = new Map<string, Array<(event: any, ctx: any) => Promise<any>>>();
@@ -794,13 +1197,13 @@ describe("pi-router extension entrypoint", () => {
 			const firstContext = makeContext("session-1");
 			await handlers.get("session_start")![0]({ reason: "new" }, firstContext);
 			await handlers.get("input")![0]({ text: "Use Astra: investiga esto", source: "interactive" }, firstContext);
-			assert.equal(sessionEntries.length, 1);
+			assert.equal(sessionEntries.length, 0);
 
 			installPiRouter(makePi() as any, dependencies);
 			const resumedContext = makeContext("session-1");
 			await handlers.get("session_start")![1]({ reason: "resume" }, resumedContext);
-			assert.deepEqual(currentModel, { provider: "openai-codex", id: "gpt-6-astra" });
-			assert.equal(currentThinking, "medium");
+			assert.deepEqual(currentModel, { provider: "openai-codex", id: "gpt-5.6-luna" });
+			assert.equal(currentThinking, "max");
 		});
 
 		it("gates native model commands only while routing is enabled", async () => {

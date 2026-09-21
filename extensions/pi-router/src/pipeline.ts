@@ -4,7 +4,6 @@ import {
 	createRouterDetailsEntry,
 	parseSinglePromptBypass,
 	type RouterDetailsEntry,
-	type RouterProfileDetailsOptions,
 } from "./details.ts";
 import {
 	applyModelProfileDirective,
@@ -15,6 +14,8 @@ import {
 	type ModelProfileState,
 } from "./model-profile.ts";
 import { createRouterMetadata, routePromptWithModel, type RouterContextOptions, type RouterModelResult } from "./router-model.ts";
+import type { JevDecisionClient, JevInputDecision } from "./jev.ts";
+import { JEV_PROFILE_CATALOG_VERSION, JEV_PROFILE_CRITERIA_VERSION, profileForJevKey } from "./jev-policy.ts";
 import type { PiAiRuntime } from "./pi-ai-client.ts";
 
 export interface PrepareRoutedPromptInput {
@@ -24,6 +25,7 @@ export interface PrepareRoutedPromptInput {
 	context?: RouterContextOptions;
 	profileState?: ModelProfileState;
 	runtime?: PiAiRuntime;
+	jev?: JevDecisionClient;
 	routePrompt?: (prompt: string, config: RouterConfig["routerModel"], context?: RouterContextOptions, runtime?: PiAiRuntime) => Promise<RouterModelResult>;
 	applyModelProfile?: (profile: ModelProfileState, previous: ModelProfileState) => Promise<ModelProfileApplicationResult> | ModelProfileApplicationResult;
 }
@@ -32,6 +34,12 @@ export type PreparedRoutedPrompt =
 	| { action: "continue"; prompt: string; bypassed?: boolean }
 	| { action: "handled"; message: string; details: RouterDetailsEntry; result: RouterModelResult; profile: ModelProfileState }
 	| { action: "transform"; prompt: string; details: RouterDetailsEntry; result: RouterModelResult; profile: ModelProfileState; warning?: string };
+
+interface JevInputEvaluation {
+	decision?: JevInputDecision;
+	error?: string;
+	cancelled: boolean;
+}
 
 export async function prepareRoutedPrompt(input: PrepareRoutedPromptInput): Promise<PreparedRoutedPrompt> {
 	const bypass = parseSinglePromptBypass(input.prompt);
@@ -46,7 +54,33 @@ export async function prepareRoutedPrompt(input: PrepareRoutedPromptInput): Prom
 
 	const activeProfile = input.profileState ?? createDefaultModelProfileState();
 	const parsedPrompt = parseModelProfilePrompt(input.prompt);
-	const requestedProfile = applyModelProfileDirective(activeProfile, parsedPrompt);
+	const jevEvaluation = await decideWithJev(input.jev, parsedPrompt.prompt, input.context, input.runtime?.signal);
+	const jevDecision = jevEvaluation?.decision;
+	const requestedProfile = resolveRequestedProfile(activeProfile, parsedPrompt, jevDecision);
+	if (jevEvaluation?.cancelled || input.runtime?.signal?.aborted) {
+		const result = profileApplicationFailureResult(parsedPrompt.prompt, "Jev decision cancelled");
+		const details = createRouterDetailsEntry(createRouterMetadata({
+			originalPrompt: input.prompt,
+			result,
+			routerModel: input.config.routerModel,
+		}), input.workModel, activeProfile, {
+			inputTranslationOutcome: "fallback",
+			jevPolicyRevision: JEV_PROFILE_CRITERIA_VERSION,
+			jevCatalogRevision: JEV_PROFILE_CATALOG_VERSION,
+			jevFallbackReasons: ["decision cancelled"],
+		});
+		return {
+			action: "handled",
+			message: "Pi router Jev decision was cancelled; prompt was not dispatched.",
+			details,
+			result,
+			profile: activeProfile,
+		};
+	}
+	const jevFallbackReasons = collectJevFallbackReasons(jevEvaluation, Boolean(parsedPrompt.profile));
+	const inputTranslationOutcome = jevDecision?.canBypassInputTranslation
+		? "bypassed" as const
+		: hasInputTranslationFallback(jevEvaluation) ? "fallback" as const : "performed" as const;
 	const application = await applyProfile(input, requestedProfile, activeProfile);
 	if (!application.applied) {
 		const result = profileApplicationFailureResult(parsedPrompt.prompt, application.error);
@@ -60,6 +94,13 @@ export async function prepareRoutedPrompt(input: PrepareRoutedPromptInput): Prom
 			effectiveModel: application.effectiveModel,
 			effectiveThinkingLevel: application.effectiveThinkingLevel,
 			profileApplicationError: application.error ?? "profile application failed",
+			...(inputTranslationOutcome ? { inputTranslationOutcome } : {}),
+			jevInputRecommendation: formatJevInputRecommendation(jevDecision),
+			jevPolicyRevision: JEV_PROFILE_CRITERIA_VERSION,
+			jevCatalogRevision: JEV_PROFILE_CATALOG_VERSION,
+			jevModel: jevDecision?.metadata.model,
+			jevDurationMs: jevDecision?.metadata.durationMs,
+			jevFallbackReasons: jevFallbackReasons.length > 0 ? jevFallbackReasons : undefined,
 		});
 		return {
 			action: "handled",
@@ -71,7 +112,9 @@ export async function prepareRoutedPrompt(input: PrepareRoutedPromptInput): Prom
 	}
 
 	const routePrompt = input.routePrompt ?? ((prompt, routerModel, context, runtime) => routePromptWithModel(prompt, routerModel, context, runtime));
-	const result = await routePrompt(parsedPrompt.prompt, input.config.routerModel, input.context, input.runtime);
+	const result = jevDecision?.canBypassInputTranslation
+		? jevBypassResult(parsedPrompt.prompt, jevDecision)
+		: await routePrompt(parsedPrompt.prompt, input.config.routerModel, input.context, input.runtime);
 	const metadata = createRouterMetadata({
 		originalPrompt: input.prompt,
 		result,
@@ -80,8 +123,15 @@ export async function prepareRoutedPrompt(input: PrepareRoutedPromptInput): Prom
 	const details = createRouterDetailsEntry(metadata, input.workModel, requestedProfile, {
 		effectiveModel: application.effectiveModel,
 		effectiveThinkingLevel: application.effectiveThinkingLevel,
+		profileApplicationDeferred: application.deferred,
+		...(inputTranslationOutcome ? { inputTranslationOutcome } : {}),
+		jevInputRecommendation: formatJevInputRecommendation(jevDecision),
+		jevPolicyRevision: JEV_PROFILE_CRITERIA_VERSION,
+		jevCatalogRevision: JEV_PROFILE_CATALOG_VERSION,
+		jevModel: jevDecision?.metadata.model,
+		jevDurationMs: jevDecision?.metadata.durationMs,
+		jevFallbackReasons: jevFallbackReasons.length > 0 ? jevFallbackReasons : undefined,
 	});
-
 	if (result.degradedReason && input.config.routerModel.fallbackMode === "error") {
 		return {
 			action: "handled",
@@ -134,6 +184,76 @@ function defaultApplication(profile: ModelProfileState): ModelProfileApplication
 		applied: true,
 		effectiveModel: { provider: profile.provider, model: profile.model },
 		effectiveThinkingLevel: profile.thinkingLevel,
+	};
+}
+
+async function decideWithJev(
+	client: JevDecisionClient | undefined,
+	prompt: string,
+	context: RouterContextOptions | undefined,
+	signal: AbortSignal | undefined,
+): Promise<JevInputEvaluation> {
+	if (signal?.aborted) return { cancelled: true };
+	if (!client) return { cancelled: false, error: "decision client unavailable" };
+	try {
+		return {
+			decision: await client.decideInput({
+				prompt,
+				...(context?.conversationSummary?.trim() ? { conversationSummary: context.conversationSummary } : {}),
+			}, { signal }),
+			cancelled: false,
+		};
+	} catch (error) {
+		if (signal?.aborted) return { cancelled: true };
+		return { cancelled: false, error: sanitizeJevError(error) };
+	}
+}
+
+function formatJevInputRecommendation(decision: JevInputDecision | undefined): string | undefined {
+	if (!decision) return undefined;
+	return `profile:${decision.profileKey ?? "rejected"} input:${decision.inputTranslation} language:${decision.sourceLanguage}`;
+}
+
+function hasInputTranslationFallback(evaluation: JevInputEvaluation | undefined): boolean {
+	return Boolean(evaluation?.error || !evaluation?.decision || evaluation.decision.inputTranslation === "uncertain");
+}
+
+function collectJevFallbackReasons(evaluation: JevInputEvaluation | undefined, explicitProfile: boolean): string[] {
+	if (!evaluation) return [];
+	const reasons: string[] = [];
+	if (evaluation.error) reasons.push(evaluation.error);
+	if (!explicitProfile && !evaluation.decision?.profile) reasons.push("profile selection uncertain; using Luna fallback");
+	if (evaluation.decision?.inputTranslation === "uncertain") reasons.push("input translation decision uncertain; retaining generative translation");
+	return reasons;
+}
+
+function sanitizeJevError(error: unknown): string {
+	const message = error instanceof Error ? error.message : String(error);
+	const key = process.env.TYPESAFE_API_KEY;
+	const redacted = key ? message.replaceAll(key, "[redacted]") : message;
+	return redacted.replace(/\s+/g, " ").slice(0, 240) || "decision failed";
+}
+
+function resolveRequestedProfile(
+	activeProfile: ModelProfileState,
+	parsedPrompt: ReturnType<typeof parseModelProfilePrompt>,
+	decision: JevInputDecision | undefined,
+): ModelProfileState {
+	if (parsedPrompt.profile) {
+		return applyModelProfileDirective(activeProfile, parsedPrompt);
+	}
+	return decision?.profile ?? profileForJevKey("luna") ?? createDefaultModelProfileState();
+}
+
+function jevBypassResult(prompt: string, decision: JevInputDecision): RouterModelResult {
+	return {
+		englishPrompt: prompt,
+		sourceLanguage: decision.sourceLanguage,
+		thinkingLevel: "medium",
+		translateFinalAnswer: decision.sourceLanguage !== "en",
+		usedConversationContext: false,
+		resolvedReferences: [],
+		unresolvedReferences: [],
 	};
 }
 
