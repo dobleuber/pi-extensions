@@ -1,6 +1,6 @@
-export type JevProfileEvaluationCategory = "routine" | "debugging" | "architecture" | "multilingual";
+export type JevProfileEvaluationCategory = "routine" | "debugging" | "architecture" | "multilingual" | "agentic";
 export type JevProfileEvaluationLanguage = "en" | "es" | "mixed";
-export type JevProfileEvaluationProfile = "luna" | "terra" | "vega" | "astra";
+export type JevProfileEvaluationProfile = "luna" | "sol" | "astra";
 export type JevTranslationLabel = "required" | "not_required";
 export type JevEvaluationSplit = "calibration" | "held-out";
 
@@ -28,12 +28,12 @@ export const JEV_PROFILE_EVALUATION_CASES: readonly JevProfileEvaluationCase[] =
 		expectedResponseTranslation: "not_required",
 	},
 	{
-		id: "routine-spanish-test-command",
+		id: "agentic-spanish-payment-migration",
 		split: "calibration",
-		category: "multilingual",
+		category: "agentic",
 		language: "es",
-		prompt: "Migra la integración de pagos a la nueva API y compara las estrategias de reintento dentro de este módulo.",
-		acceptableProfiles: ["terra"],
+		prompt: "Migra la integración de pagos a la nueva API: inspecciona el SDK y los contratos, implementa idempotencia y reintentos, ejecuta pruebas de fallos y corrige los problemas hasta verificar el flujo completo.",
+		acceptableProfiles: ["sol"],
 		expectedInputTranslation: "required",
 		expectedResponseTranslation: "required",
 	},
@@ -42,8 +42,8 @@ export const JEV_PROFILE_EVALUATION_CASES: readonly JevProfileEvaluationCase[] =
 		split: "calibration",
 		category: "debugging",
 		language: "en",
-		prompt: "Trace the intermittent queued-turn race, identify the lifecycle boundary, and add a regression test.",
-		acceptableProfiles: ["vega", "astra"],
+		prompt: "Debug an intermittent queued-turn race: reproduce it under load, trace lifecycle events across tools, compare competing causes, implement a fix, and repeatedly run concurrency regressions until verified.",
+		acceptableProfiles: ["sol"],
 		expectedInputTranslation: "not_required",
 		expectedResponseTranslation: "not_required",
 	},
@@ -52,18 +52,18 @@ export const JEV_PROFILE_EVALUATION_CASES: readonly JevProfileEvaluationCase[] =
 		split: "held-out",
 		category: "architecture",
 		language: "en",
-		prompt: "Design a provider-neutral model selection boundary with cancellation, telemetry, and deterministic fallback semantics.",
+		prompt: "Design a novel provider-neutral execution architecture under conflicting tenant-isolation, cross-region recovery, and irreversible-tool requirements. Existing designs cannot satisfy all constraints; resolve ambiguous failure semantics, compare fundamentally different architectures, and justify the security and consistency trade-offs before implementation.",
 		acceptableProfiles: ["astra"],
 		expectedInputTranslation: "not_required",
 		expectedResponseTranslation: "not_required",
 	},
 	{
-		id: "mixed-code-explanation",
+		id: "heldout-mixed-code-debugging",
 		split: "held-out",
-		category: "multilingual",
+		category: "debugging",
 		language: "mixed",
-		prompt: "Explica por qué falla este test y conserva exactamente `ModelProfileState` y el código adjunto.",
-		acceptableProfiles: ["vega", "astra"],
+		prompt: "Investiga el fallo intermitente de `ModelProfileState`: inspect traces, reproduce the failure, implement the fix, and run the full regression suite. Conserva las interfaces públicas y explica la causa raíz.",
+		acceptableProfiles: ["sol"],
 		expectedInputTranslation: "required",
 		expectedResponseTranslation: "required",
 	},

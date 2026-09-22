@@ -1,8 +1,8 @@
 import type { WorkModelInfo } from "./config.ts";
 
-export type ModelProfileId = "luna-max" | "terra-medium" | "astra-low" | "astra-medium";
+export type ModelProfileId = "luna-max" | "sol" | "astra-medium";
 export type ModelProfileSource = "default" | "prompt" | "automatic";
-export type ProfileThinkingLevel = "low" | "medium" | "high" | "max";
+export type ProfileThinkingLevel = "low" | "medium" | "high" | "xhigh" | "max";
 
 export interface ModelProfile {
 	readonly id: ModelProfileId;
@@ -16,6 +16,13 @@ export interface ModelProfileState extends ModelProfile {
 	readonly source: ModelProfileSource;
 }
 
+/** Canonical runtime model identifiers used by every router profile. */
+export const MODEL_IDS = Object.freeze({
+	luna: "gpt-6-luna",
+	sol: "gpt-6-sol",
+	astra: "gpt-6-astra",
+} as const);
+
 export interface ParsedModelProfilePrompt {
 	readonly prompt: string;
 	readonly profile?: ModelProfileId;
@@ -26,42 +33,33 @@ export const DEFAULT_MODEL_PROFILE: ModelProfile = Object.freeze({
 	id: "luna-max",
 	label: "Luna Max",
 	provider: "openai-codex",
-	model: "gpt-5.6-luna",
+	model: MODEL_IDS.luna,
 	thinkingLevel: "max",
 });
 
-export const TERRA_MEDIUM_PROFILE: ModelProfile = Object.freeze({
-	id: "terra-medium",
-	label: "Terra Medium",
+export const SOL_PROFILE: ModelProfile = Object.freeze({
+	id: "sol",
+	label: "Sol",
 	provider: "openai-codex",
-	model: "gpt-5.6-terra",
-	thinkingLevel: "medium",
-});
-
-export const ASTRA_LOW_PROFILE: ModelProfile = Object.freeze({
-	id: "astra-low",
-	label: "Vega",
-	provider: "openai-codex",
-	model: "gpt-6-astra",
-	thinkingLevel: "low",
+	model: MODEL_IDS.sol,
+	thinkingLevel: "xhigh",
 });
 
 export const ASTRA_MEDIUM_PROFILE: ModelProfile = Object.freeze({
 	id: "astra-medium",
 	label: "Astra Medium",
 	provider: "openai-codex",
-	model: "gpt-6-astra",
+	model: MODEL_IDS.astra,
 	thinkingLevel: "medium",
 });
 
 export const MODEL_PROFILES: Readonly<Record<ModelProfileId, ModelProfile>> = Object.freeze({
 	[DEFAULT_MODEL_PROFILE.id]: DEFAULT_MODEL_PROFILE,
-	[TERRA_MEDIUM_PROFILE.id]: TERRA_MEDIUM_PROFILE,
-	[ASTRA_LOW_PROFILE.id]: ASTRA_LOW_PROFILE,
+	[SOL_PROFILE.id]: SOL_PROFILE,
 	[ASTRA_MEDIUM_PROFILE.id]: ASTRA_MEDIUM_PROFILE,
 } as Record<ModelProfileId, ModelProfile>);
 
-const MODEL_PROFILE_DIRECTIVE = /^\s*(Use Terra:|Usa Terra:|Use Astra:|Usa Astra:|Use Vega:|Usa Vega:|Use Default:|Usa el modelo predeterminado:)/i;
+const MODEL_PROFILE_DIRECTIVE = /^\s*(Use Sol:|Usa Sol:|Use Astra:|Usa Astra:|Use Default:|Usa el modelo predeterminado:)/i;
 
 /**
  * Recognize only the supported leading, colon-delimited profile controls.
@@ -79,13 +77,11 @@ export function parseModelProfilePrompt(prompt: string): ParsedModelProfilePromp
 		return { prompt };
 	}
 
-	const profile: ModelProfileId = directive === "use terra:" || directive === "usa terra:"
-		? "terra-medium"
-		: directive === "use astra:" || directive === "usa astra:"
+	const profile: ModelProfileId = directive === "use astra:" || directive === "usa astra:"
 		? "astra-medium"
-		: directive === "use vega:" || directive === "usa vega:"
-			? "astra-low"
-			: "luna-max";
+		: directive === "use sol:" || directive === "usa sol:"
+			? "sol"
+		: "luna-max";
 	const source: ModelProfileSource = profile === "luna-max" ? "default" : "prompt";
 
 	return {

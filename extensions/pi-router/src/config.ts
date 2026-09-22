@@ -1,4 +1,5 @@
 import { DEFAULT_JEV_CONFIG, type JevConfig } from "./jev.ts";
+import { DEFAULT_MODEL_PROFILE } from "./model-profile.ts";
 import type { JevCostTier } from "./jev-policy.ts";
 import type { ModelProfileState } from "./model-profile.ts";
 
@@ -45,8 +46,8 @@ export interface RouterStatusInput {
 export const DEFAULT_ROUTER_CONFIG: RouterConfig = {
 	state: "off",
 	routerModel: {
-		provider: "openai-codex",
-		model: "gpt-5.6-luna",
+		provider: DEFAULT_MODEL_PROFILE.provider,
+		model: DEFAULT_MODEL_PROFILE.model,
 		timeoutMs: 15000,
 		fallbackMode: "passthrough-with-warning",
 		maxInputChars: 12000,

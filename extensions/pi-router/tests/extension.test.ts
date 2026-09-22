@@ -1,11 +1,13 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { DEFAULT_ROUTER_CONFIG } from "../src/config.ts";
+import { ASTRA_MEDIUM_PROFILE, DEFAULT_MODEL_PROFILE } from "../src/model-profile.ts";
 import piRouterExtension, { installPiRouter } from "../src/index.ts";
 
 // Offline tests must never use the developer's live TypeSafe credential.
 delete process.env.TYPESAFE_API_KEY;
 const DEFAULT_TEST_CONFIG = DEFAULT_ROUTER_CONFIG;
+const DEFAULT_MODEL_REF = `${DEFAULT_MODEL_PROFILE.provider}/${DEFAULT_MODEL_PROFILE.model}`;
 
 describe("pi-router extension entrypoint", () => {
 	it("registers a router status command and session status indicator", async () => {
@@ -45,7 +47,7 @@ describe("pi-router extension entrypoint", () => {
 		assert.deepEqual(inputResult, { action: "continue" });
 		assert.deepEqual(statuses, [["pi-router", "router:off"]]);
 		assert.deepEqual(notifications, [
-			"router:off profile:Luna Max profileSource:default profileModel:openai-codex/gpt-5.6-luna profileThinking:max routerModel:openai-codex/gpt-5.6-luna workModel:unknown",
+			`router:off profile:Luna Max profileSource:default profileModel:${DEFAULT_MODEL_REF} profileThinking:max routerModel:${DEFAULT_MODEL_REF} workModel:unknown`,
 		]);
 	});
 
@@ -96,8 +98,8 @@ describe("pi-router extension entrypoint", () => {
 					receivedState = state;
 					return {
 						model: "jev-1.13", usage: { input_tokens: 1, output_tokens: 0 },
-						profile: { id: "luna-max", label: "Luna Max", provider: "openai-codex", model: "gpt-5.6-luna", thinkingLevel: "max", source: "automatic" as const },
-						profileKey: "luna" as const, profileConfidence: 0.9, profileProbabilities: { luna: 0.9, vega: 0.05, astra: 0.05 },
+						profile: { id: "luna-max", label: "Luna Max", provider: "openai-codex", model: DEFAULT_MODEL_PROFILE.model, thinkingLevel: "max", source: "automatic" as const },
+						profileKey: "luna" as const, profileConfidence: 0.9, profileProbabilities: { luna: 0.9, sol: 0.05, astra: 0.05 },
 						inputTranslation: "not_required" as const, inputTranslationConfidence: 0.99,
 						sourceLanguage: "en" as const, sourceLanguageConfidence: 0.99, canBypassInputTranslation: true,
 						metadata: { model: "jev-1.13", inputTokens: 1, outputTokens: 0 },
@@ -130,8 +132,8 @@ describe("pi-router extension entrypoint", () => {
 			jev: {
 				decideInput: async () => ({
 					model: "jev-1.13", usage: { input_tokens: 1, output_tokens: 0 },
-					profile: { id: "astra-medium", label: "Astra Medium", provider: "openai-codex", model: "gpt-6-astra", thinkingLevel: "medium", source: "automatic" as const },
-					profileKey: "astra" as const, profileConfidence: 0.99, profileProbabilities: { luna: 0.01, vega: 0, astra: 0.99 },
+					profile: { id: "astra-medium", label: "Astra Medium", provider: "openai-codex", model: ASTRA_MEDIUM_PROFILE.model, thinkingLevel: "medium", source: "automatic" as const },
+					profileKey: "astra" as const, profileConfidence: 0.99, profileProbabilities: { luna: 0.01, sol: 0, astra: 0.99 },
 					inputTranslation: "required" as const, inputTranslationConfidence: 0.99,
 					sourceLanguage: "es" as const, sourceLanguageConfidence: 0.99, canBypassInputTranslation: false,
 					metadata: { model: "jev-1.13", inputTokens: 1, outputTokens: 0 },
@@ -319,10 +321,10 @@ describe("pi-router extension entrypoint", () => {
 				decideInput: async () => ({
 					model: "jev-1.13",
 					usage: { input_tokens: 10, output_tokens: 0 },
-					profile: { id: "luna-max", label: "Luna Max", provider: "openai-codex", model: "gpt-5.6-luna", thinkingLevel: "max", source: "automatic" as const },
+					profile: { id: "luna-max", label: "Luna Max", provider: "openai-codex", model: DEFAULT_MODEL_PROFILE.model, thinkingLevel: "max", source: "automatic" as const },
 					profileKey: "luna" as const,
 					profileConfidence: 0.9,
-					profileProbabilities: { luna: 0.9, vega: 0.06, astra: 0.04 },
+					profileProbabilities: { luna: 0.9, sol: 0.06, astra: 0.04 },
 					inputTranslation: "required" as const,
 					inputTranslationConfidence: 0.99,
 					sourceLanguage: "es" as const,
@@ -381,8 +383,8 @@ describe("pi-router extension entrypoint", () => {
 			jev: {
 				decideInput: async () => ({
 					model: "jev-1.13", usage: { input_tokens: 1, output_tokens: 0 },
-					profile: { id: "luna-max", label: "Luna Max", provider: "openai-codex", model: "gpt-5.6-luna", thinkingLevel: "max", source: "automatic" as const },
-					profileKey: "luna" as const, profileConfidence: 0.9, profileProbabilities: { luna: 0.9, vega: 0.05, astra: 0.05 },
+					profile: { id: "luna-max", label: "Luna Max", provider: "openai-codex", model: DEFAULT_MODEL_PROFILE.model, thinkingLevel: "max", source: "automatic" as const },
+					profileKey: "luna" as const, profileConfidence: 0.9, profileProbabilities: { luna: 0.9, sol: 0.05, astra: 0.05 },
 					inputTranslation: "not_required" as const, inputTranslationConfidence: 0.99,
 					sourceLanguage: "en" as const, sourceLanguageConfidence: 0.99, canBypassInputTranslation: true,
 					metadata: { model: "jev-1.13", inputTokens: 1, outputTokens: 0 },
@@ -427,8 +429,8 @@ describe("pi-router extension entrypoint", () => {
 			jev: {
 				decideInput: async () => ({
 					model: "jev-1.13", usage: { input_tokens: 1, output_tokens: 0 },
-					profile: { id: "luna-max", label: "Luna Max", provider: "openai-codex", model: "gpt-5.6-luna", thinkingLevel: "max", source: "automatic" as const },
-					profileKey: "luna" as const, profileConfidence: 0.9, profileProbabilities: { luna: 0.9, vega: 0.05, astra: 0.05 },
+					profile: { id: "luna-max", label: "Luna Max", provider: "openai-codex", model: DEFAULT_MODEL_PROFILE.model, thinkingLevel: "max", source: "automatic" as const },
+					profileKey: "luna" as const, profileConfidence: 0.9, profileProbabilities: { luna: 0.9, sol: 0.05, astra: 0.05 },
 					inputTranslation: "required" as const, inputTranslationConfidence: 0.99,
 					sourceLanguage: "es" as const, sourceLanguageConfidence: 0.99, canBypassInputTranslation: false,
 					metadata: { model: "jev-1.13", inputTokens: 1, outputTokens: 0 },
@@ -928,7 +930,7 @@ describe("pi-router extension entrypoint", () => {
 	it("does not apply a queued profile until the active tool continuation has settled", async () => {
 		const commands = new Map<string, { handler: (args: string, ctx: any) => Promise<void> }>();
 		const handlers = new Map<string, Array<(event: any, ctx: any) => Promise<any>>>();
-		let currentModel: any = { provider: "openai-codex", id: "gpt-5.6-luna" };
+		let currentModel: any = { provider: "openai-codex", id: DEFAULT_MODEL_PROFILE.model };
 		let currentThinking = "max";
 		const pi = {
 			registerCommand(name: string, command: { handler: (args: string, ctx: any) => Promise<void> }) { commands.set(name, command); },
@@ -948,8 +950,8 @@ describe("pi-router extension entrypoint", () => {
 			jev: {
 				decideInput: async () => ({
 					model: "jev-1.13", usage: { input_tokens: 1, output_tokens: 0 },
-					profile: { id: "luna-max", label: "Luna Max", provider: "openai-codex", model: "gpt-5.6-luna", thinkingLevel: "max", source: "automatic" as const },
-					profileKey: "luna" as const, profileConfidence: 0.9, profileProbabilities: { luna: 0.9, vega: 0.05, astra: 0.05 },
+					profile: { id: "luna-max", label: "Luna Max", provider: "openai-codex", model: DEFAULT_MODEL_PROFILE.model, thinkingLevel: "max", source: "automatic" as const },
+					profileKey: "luna" as const, profileConfidence: 0.9, profileProbabilities: { luna: 0.9, sol: 0.05, astra: 0.05 },
 					inputTranslation: "not_required" as const, inputTranslationConfidence: 0.99,
 					sourceLanguage: "en" as const, sourceLanguageConfidence: 0.99, canBypassInputTranslation: true,
 					metadata: { model: "jev-1.13", inputTokens: 1, outputTokens: 0 },
@@ -964,24 +966,24 @@ describe("pi-router extension entrypoint", () => {
 		await handlers.get("message_start")![0]({ message: { role: "user", content: [{ type: "text", text: "start the task" }] } }, ctx);
 
 		await handlers.get("input")![0]({ text: "Use Astra: continue after the tool", source: "interactive" }, ctx);
-		assert.deepEqual(currentModel, { provider: "openai-codex", id: "gpt-5.6-luna" });
+		assert.deepEqual(currentModel, { provider: "openai-codex", id: DEFAULT_MODEL_PROFILE.model });
 		await handlers.get("turn_end")![0]({ message: { role: "assistant", stopReason: "toolUse" }, toolResults: [{ role: "toolResult" }] }, ctx);
 		await handlers.get("turn_start")![0]({ turnIndex: 1, timestamp: 2 }, ctx);
-		assert.deepEqual(currentModel, { provider: "openai-codex", id: "gpt-5.6-luna" });
+		assert.deepEqual(currentModel, { provider: "openai-codex", id: DEFAULT_MODEL_PROFILE.model });
 		await handlers.get("turn_end")![0]({ message: { role: "assistant", stopReason: "stop" }, toolResults: [] }, ctx);
 		await handlers.get("turn_start")![0]({ turnIndex: 2, timestamp: 3 }, ctx);
-		assert.deepEqual(currentModel, { provider: "openai-codex", id: "gpt-6-astra" });
+		assert.deepEqual(currentModel, { provider: "openai-codex", id: ASTRA_MEDIUM_PROFILE.model });
 		assert.equal(currentThinking, "medium");
 		// A second queued prompt must not replace the first at message_start.
 		await handlers.get("input")![0]({ text: "Use Default: another task", source: "interactive" }, ctx);
 		await handlers.get("message_start")![0]({ message: { role: "user" } }, ctx);
-		assert.equal(currentModel.id, "gpt-6-astra");
+		assert.equal(currentModel.id, ASTRA_MEDIUM_PROFILE.model);
 		assert.equal(currentThinking, "medium");
 	});
 
 	it("aborts a receiving turn when a deferred profile cannot be applied", async () => {
 		const handlers = new Map<string, Array<(event: any, ctx: any) => Promise<any>>>();
-		let currentModel: any = { provider: "openai-codex", id: "gpt-5.6-luna" };
+		let currentModel: any = { provider: "openai-codex", id: DEFAULT_MODEL_PROFILE.model };
 		let aborts = 0;
 		const notifications: string[] = [];
 		const pi = {
@@ -1002,8 +1004,8 @@ describe("pi-router extension entrypoint", () => {
 			jev: {
 				decideInput: async () => ({
 					model: "jev-1.13", usage: { input_tokens: 1, output_tokens: 0 },
-					profile: { id: "luna-max", label: "Luna Max", provider: "openai-codex", model: "gpt-5.6-luna", thinkingLevel: "max", source: "automatic" as const },
-					profileKey: "luna" as const, profileConfidence: 0.9, profileProbabilities: { luna: 0.9, vega: 0.05, astra: 0.05 },
+					profile: { id: "luna-max", label: "Luna Max", provider: "openai-codex", model: DEFAULT_MODEL_PROFILE.model, thinkingLevel: "max", source: "automatic" as const },
+					profileKey: "luna" as const, profileConfidence: 0.9, profileProbabilities: { luna: 0.9, sol: 0.05, astra: 0.05 },
 					inputTranslation: "not_required" as const, inputTranslationConfidence: 0.99,
 					sourceLanguage: "en" as const, sourceLanguageConfidence: 0.99, canBypassInputTranslation: true,
 					metadata: { model: "jev-1.13", inputTokens: 1, outputTokens: 0 },
@@ -1022,7 +1024,7 @@ describe("pi-router extension entrypoint", () => {
 		await handlers.get("turn_end")![0]({ message: { role: "assistant", stopReason: "stop" }, toolResults: [] }, ctx);
 		await handlers.get("turn_start")![0]({}, ctx);
 
-		assert.deepEqual(currentModel, { provider: "openai-codex", id: "gpt-5.6-luna" });
+		assert.deepEqual(currentModel, { provider: "openai-codex", id: DEFAULT_MODEL_PROFILE.model });
 		assert.equal(aborts, 1);
 		assert.match(notifications.at(-1)!, /Astra unavailable/);
 	});
@@ -1031,7 +1033,7 @@ describe("pi-router extension entrypoint", () => {
 		const handlers = new Map<string, Array<(event: any, ctx: any) => Promise<any>>>();
 		const profileEntries: any[] = [];
 		const savedStates: string[] = [];
-		let currentModel: any = { provider: "openai-codex", id: "gpt-5.6-luna" };
+		let currentModel: any = { provider: "openai-codex", id: DEFAULT_MODEL_PROFILE.model };
 		const pi = {
 			registerCommand() {},
 			on(event: string, handler: (event: any, ctx: any) => Promise<any>) { handlers.set(event, [...(handlers.get(event) ?? []), handler]); },
@@ -1050,8 +1052,8 @@ describe("pi-router extension entrypoint", () => {
 			jev: {
 				decideInput: async () => ({
 					model: "jev-1.13", usage: { input_tokens: 1, output_tokens: 0 },
-					profile: { id: "luna-max", label: "Luna Max", provider: "openai-codex", model: "gpt-5.6-luna", thinkingLevel: "max", source: "automatic" as const },
-					profileKey: "luna" as const, profileConfidence: 0.9, profileProbabilities: { luna: 0.9, vega: 0.05, astra: 0.05 },
+					profile: { id: "luna-max", label: "Luna Max", provider: "openai-codex", model: DEFAULT_MODEL_PROFILE.model, thinkingLevel: "max", source: "automatic" as const },
+					profileKey: "luna" as const, profileConfidence: 0.9, profileProbabilities: { luna: 0.9, sol: 0.05, astra: 0.05 },
 					inputTranslation: "not_required" as const, inputTranslationConfidence: 0.99,
 					sourceLanguage: "en" as const, sourceLanguageConfidence: 0.99, canBypassInputTranslation: true,
 					metadata: { model: "jev-1.13", inputTokens: 1, outputTokens: 0 },
@@ -1061,7 +1063,7 @@ describe("pi-router extension entrypoint", () => {
 			routePrompt: async (prompt: string) => ({ englishPrompt: prompt, sourceLanguage: "en" as const, thinkingLevel: "medium" as const, translateFinalAnswer: false }),
 		});
 		await handlers.get("input")![0]({ text: "Use Astra: inspect this", source: "interactive" }, ctx);
-		assert.deepEqual(currentModel, { provider: "openai-codex", id: "gpt-6-astra" });
+		assert.deepEqual(currentModel, { provider: "openai-codex", id: ASTRA_MEDIUM_PROFILE.model });
 		assert.deepEqual(profileEntries, []);
 		assert.deepEqual(savedStates, []);
 	});
@@ -1071,7 +1073,7 @@ describe("pi-router extension entrypoint", () => {
 			const commands = new Map<string, { handler: (args: string, ctx: any) => Promise<void> }>();
 			const handlers = new Map<string, Array<(event: any, ctx: any) => Promise<any>>>();
 			const routedPrompts: string[] = [];
-			let currentModel: any = { provider: "openai-codex", id: "gpt-5.6-luna" };
+			let currentModel: any = { provider: "openai-codex", id: DEFAULT_MODEL_PROFILE.model };
 			let currentThinking = "max";
 			const pi = {
 				registerCommand(name: string, command: { handler: (args: string, ctx: any) => Promise<void> }) { commands.set(name, command); },
@@ -1107,26 +1109,26 @@ describe("pi-router extension entrypoint", () => {
 
 			const first = await handlers.get("input")![0]({ text: "Use Astra: arregla esto", source: "interactive" }, ctx);
 			assert.deepEqual(first, { action: "transform", text: "English: arregla esto" });
-			assert.deepEqual(currentModel, { provider: "openai-codex", id: "gpt-6-astra" });
+			assert.deepEqual(currentModel, { provider: "openai-codex", id: ASTRA_MEDIUM_PROFILE.model });
 			assert.equal(currentThinking, "medium");
 
 			await handlers.get("input")![0]({ text: "continúa la investigación", source: "interactive" }, ctx);
-			assert.deepEqual(currentModel, { provider: "openai-codex", id: "gpt-5.6-luna" });
+			assert.deepEqual(currentModel, { provider: "openai-codex", id: DEFAULT_MODEL_PROFILE.model });
 			assert.equal(currentThinking, "max");
 
 			await commands.get("router")!.handler("off", ctx);
 			currentModel = { provider: "native", id: "native-model" };
 			currentThinking = "low";
 			await commands.get("router")!.handler("on", ctx);
-			assert.deepEqual(currentModel, { provider: "openai-codex", id: "gpt-5.6-luna" });
+			assert.deepEqual(currentModel, { provider: "openai-codex", id: DEFAULT_MODEL_PROFILE.model });
 			assert.equal(currentThinking, "max");
 			await handlers.get("input")![0]({ text: "sigue con eso", source: "interactive" }, ctx);
-			assert.deepEqual(currentModel, { provider: "openai-codex", id: "gpt-5.6-luna" });
+			assert.deepEqual(currentModel, { provider: "openai-codex", id: DEFAULT_MODEL_PROFILE.model });
 			assert.equal(currentThinking, "max");
 
 			const reset = await handlers.get("input")![0]({ text: "Usa el modelo predeterminado: termina", source: "interactive" }, ctx);
 			assert.deepEqual(reset, { action: "transform", text: "English: termina" });
-			assert.deepEqual(currentModel, { provider: "openai-codex", id: "gpt-5.6-luna" });
+			assert.deepEqual(currentModel, { provider: "openai-codex", id: DEFAULT_MODEL_PROFILE.model });
 			assert.equal(currentThinking, "max");
 			assert.deepEqual(routedPrompts, ["arregla esto", "continúa la investigación", "sigue con eso", "termina"]);
 		});
@@ -1136,7 +1138,7 @@ describe("pi-router extension entrypoint", () => {
 			const handlers = new Map<string, Array<(event: any, ctx: any) => Promise<any>>>();
 			let settingsReads = 0;
 			let settingsWrites = 0;
-			let currentModel: any = { provider: "openai-codex", id: "gpt-5.6-luna" };
+			let currentModel: any = { provider: "openai-codex", id: DEFAULT_MODEL_PROFILE.model };
 			let currentThinking = "max";
 			const pi = {
 				registerCommand(name: string, command: { handler: (args: string, ctx: any) => Promise<void> }) { commands.set(name, command); },
@@ -1170,7 +1172,7 @@ describe("pi-router extension entrypoint", () => {
 			const sessionEntries: any[] = [];
 			const commands = new Map<string, { handler: (args: string, ctx: any) => Promise<void> }>();
 			const handlers = new Map<string, Array<(event: any, ctx: any) => Promise<any>>>();
-			let currentModel: any = { provider: "openai-codex", id: "gpt-5.6-luna" };
+			let currentModel: any = { provider: "openai-codex", id: DEFAULT_MODEL_PROFILE.model };
 			let currentThinking = "max";
 			const makePi = () => ({
 				registerCommand(name: string, command: { handler: (args: string, ctx: any) => Promise<void> }) { commands.set(name, command); },
@@ -1202,7 +1204,7 @@ describe("pi-router extension entrypoint", () => {
 			installPiRouter(makePi() as any, dependencies);
 			const resumedContext = makeContext("session-1");
 			await handlers.get("session_start")![1]({ reason: "resume" }, resumedContext);
-			assert.deepEqual(currentModel, { provider: "openai-codex", id: "gpt-5.6-luna" });
+			assert.deepEqual(currentModel, { provider: "openai-codex", id: DEFAULT_MODEL_PROFILE.model });
 			assert.equal(currentThinking, "max");
 		});
 
@@ -1232,7 +1234,7 @@ describe("pi-router extension entrypoint", () => {
 			const commands = new Map<string, { handler: (args: string, ctx: any) => Promise<void> }>();
 			const notifications: string[] = [];
 			let routeCalls = 0;
-			let currentModel: any = { provider: "openai-codex", id: "gpt-5.6-luna" };
+			let currentModel: any = { provider: "openai-codex", id: DEFAULT_MODEL_PROFILE.model };
 			const pi = {
 				registerCommand(name: string, command: { handler: (args: string, ctx: any) => Promise<void> }) { commands.set(name, command); },
 				on(event: string, handler: (event: any, ctx: any) => Promise<any>) { handlers.set(event, [...(handlers.get(event) ?? []), handler]); },
@@ -1245,7 +1247,7 @@ describe("pi-router extension entrypoint", () => {
 				get model() { return currentModel; },
 				modelRegistry: {
 					find(provider: string, model: string) {
-						return provider === "openai-codex" && model === "gpt-5.6-luna" ? { provider, id: model } : undefined;
+						return provider === "openai-codex" && model === DEFAULT_MODEL_PROFILE.model ? { provider, id: model } : undefined;
 					},
 				},
 				ui: { notify(message: string) { notifications.push(message); }, setStatus() {} },
@@ -1263,12 +1265,12 @@ describe("pi-router extension entrypoint", () => {
 			const failed = await handlers.get("input")![0]({ text: "Use Astra: hazlo", source: "interactive" }, ctx);
 			assert.deepEqual(failed, { action: "handled" });
 			assert.equal(routeCalls, 0);
-			assert.match(notifications.at(-1)!, /gpt-6-astra/);
+			assert.match(notifications.at(-1)!, new RegExp(ASTRA_MEDIUM_PROFILE.model));
 
 			const retry = await handlers.get("input")![0]({ text: "hazlo", source: "interactive" }, ctx);
 			assert.deepEqual(retry, { action: "transform", text: "hazlo" });
 			assert.equal(routeCalls, 1);
-			assert.deepEqual(currentModel, { provider: "openai-codex", id: "gpt-5.6-luna" });
+			assert.deepEqual(currentModel, { provider: "openai-codex", id: DEFAULT_MODEL_PROFILE.model });
 		});
 	});
 });

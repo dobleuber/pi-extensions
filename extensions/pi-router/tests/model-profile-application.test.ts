@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { ASTRA_LOW_PROFILE, ASTRA_MEDIUM_PROFILE, applyModelProfileToRuntime, type ModelProfileRuntime } from "../src/model-profile.ts";
+import { ASTRA_MEDIUM_PROFILE, SOL_PROFILE, applyModelProfileToRuntime, type ModelProfileRuntime } from "../src/model-profile.ts";
 
 describe("router model profile application", () => {
 	it("resolves the profile through the registry and applies model and thinking atomically", async () => {
@@ -15,7 +15,7 @@ describe("router model profile application", () => {
 				return true;
 			},
 			setThinkingLevel: (level) => { calls.push(`thinking:${level}`); },
-			getEffectiveModel: () => ({ provider: "openai-codex", model: "gpt-6-astra" }),
+			getEffectiveModel: () => ({ provider: ASTRA_MEDIUM_PROFILE.provider, model: ASTRA_MEDIUM_PROFILE.model }),
 			getEffectiveThinkingLevel: () => "medium",
 		};
 
@@ -23,29 +23,29 @@ describe("router model profile application", () => {
 
 		assert.deepEqual(result, {
 			applied: true,
-			effectiveModel: { provider: "openai-codex", model: "gpt-6-astra" },
+			effectiveModel: { provider: ASTRA_MEDIUM_PROFILE.provider, model: ASTRA_MEDIUM_PROFILE.model },
 			effectiveThinkingLevel: "medium",
 		});
 		assert.deepEqual(calls, [
-			"resolve:openai-codex/gpt-6-astra",
-			"model:gpt-6-astra",
+			`resolve:${ASTRA_MEDIUM_PROFILE.provider}/${ASTRA_MEDIUM_PROFILE.model}`,
+			`model:${ASTRA_MEDIUM_PROFILE.model}`,
 			"thinking:medium",
 		]);
 	});
 
-	it("applies the Sol profile with low thinking", async () => {
+	it("applies the Sol profile with xhigh thinking", async () => {
 		let thinkingLevel = "";
-		const result = await applyModelProfileToRuntime({ ...ASTRA_LOW_PROFILE, source: "prompt" }, {
+		const result = await applyModelProfileToRuntime({ ...SOL_PROFILE, source: "prompt" }, {
 			resolveModel: (provider, model) => ({ provider, id: model }),
 			setModel: async () => true,
 			setThinkingLevel: (level) => { thinkingLevel = level; },
-			getEffectiveModel: () => ({ provider: "openai-codex", model: "gpt-6-astra" }),
+			getEffectiveModel: () => ({ provider: SOL_PROFILE.provider, model: SOL_PROFILE.model }),
 			getEffectiveThinkingLevel: () => thinkingLevel,
 		});
 
 		assert.equal(result.applied, true);
-		assert.equal(thinkingLevel, "low");
-		assert.equal(result.effectiveThinkingLevel, "low");
+		assert.equal(thinkingLevel, "xhigh");
+		assert.equal(result.effectiveThinkingLevel, "xhigh");
 	});
 
 	it("rejects a registry result whose identity does not match the requested profile", async () => {
@@ -70,14 +70,14 @@ describe("router model profile application", () => {
 		});
 
 		assert.equal(result.applied, false);
-		assert.match(result.error ?? "", /gpt-6-astra/);
+		assert.match(result.error ?? "", new RegExp(ASTRA_MEDIUM_PROFILE.model));
 		assert.equal(thinkingApplied, false);
 	});
 
 	it("stops before thinking when Pi rejects the model change", async () => {
 		let thinkingApplied = false;
 		const result = await applyModelProfileToRuntime({ ...ASTRA_MEDIUM_PROFILE, source: "prompt" }, {
-			resolveModel: () => ({ provider: "openai-codex", id: "gpt-6-astra" }),
+			resolveModel: () => ({ provider: ASTRA_MEDIUM_PROFILE.provider, id: ASTRA_MEDIUM_PROFILE.model }),
 			setModel: async () => false,
 			setThinkingLevel: () => { thinkingApplied = true; },
 		});

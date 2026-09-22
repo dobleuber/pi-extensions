@@ -15,13 +15,25 @@ describe("Jev evaluation manifest", () => {
 		assert.equal(JEV_EVALUATION_MANIFEST.releaseGate.thresholds.p95CompletePathMsMax, null);
 	});
 
+	it("penalizes Astra escalation for demanding tasks labeled for Sol", () => {
+		const cases = JEV_PROFILE_EVALUATION_CASES.filter((item) => item.category === "debugging" || item.category === "agentic");
+		assert.ok(cases.length > 0);
+		const predict = (profile: "sol" | "astra") => Object.fromEntries(cases.map((item) => [item.id, {
+			profile,
+			inputTranslation: item.expectedInputTranslation,
+			responseTranslation: item.expectedResponseTranslation,
+		}]));
+		assert.equal(scoreJevEvaluation(cases, predict("sol")).profileAgreement, 1);
+		assert.equal(scoreJevEvaluation(cases, predict("astra")).profileAgreement, 0);
+	});
+
 	it("scores profile and translation outcomes independently", () => {
 		const summary = scoreJevEvaluation(JEV_PROFILE_EVALUATION_CASES, {
 			"routine-readme-edit": { profile: "luna", inputTranslation: "not_required", responseTranslation: "not_required" },
-			"routine-spanish-test-command": { profile: "terra", inputTranslation: "required", responseTranslation: "required" },
-			"debugging-flaky-lifecycle": { profile: "astra", inputTranslation: "not_required", responseTranslation: "not_required" },
+			"agentic-spanish-payment-migration": { profile: "sol", inputTranslation: "required", responseTranslation: "required" },
+			"debugging-flaky-lifecycle": { profile: "sol", inputTranslation: "not_required", responseTranslation: "not_required" },
 			"architecture-provider-boundary": { profile: "astra", inputTranslation: "not_required", responseTranslation: "not_required" },
-			"mixed-code-explanation": { profile: "vega", inputTranslation: "not_required", responseTranslation: "required" },
+			"heldout-mixed-code-debugging": { profile: "sol", inputTranslation: "not_required", responseTranslation: "required" },
 		});
 		assert.equal(summary.count, 5);
 		assert.equal(summary.profileAgreement, 1);

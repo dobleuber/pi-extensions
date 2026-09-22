@@ -24,7 +24,7 @@ describe("Jev decision client", () => {
 			conversationSummary: "The previous task added profile directives.",
 		});
 		assert.deepEqual(Object.keys(request.questions), ["profile", "inputTranslation", "sourceLanguage"]);
-		assert.deepEqual(Object.keys(request.questions.profile.criteria), ["luna", "terra", "vega", "astra"]);
+		assert.deepEqual(Object.keys(request.questions.profile.criteria), ["luna", "sol", "astra"]);
 		const costCapped = buildJevInputRequest({ prompt: "routine" }, { ...DEFAULT_JEV_CONFIG, maxProfileCostTier: 1 });
 		assert.deepEqual(Object.keys(costCapped.questions.profile.criteria), ["luna"]);
 		assert.deepEqual(Object.keys(request.questions.inputTranslation.criteria), ["required", "not_required", "uncertain"]);
@@ -42,7 +42,7 @@ describe("Jev decision client", () => {
 			model: "jev-1.13",
 			usage: { input_tokens: 42, output_tokens: 0 },
 			answers: {
-				profile: { type: "choice", choice: "vega", confidence: 0.91, probabilities: { terra: 0, luna: 0.04, vega: 0.91, astra: 0.05 } },
+				profile: { type: "choice", choice: "sol", confidence: 0.91, probabilities: { sol: 0.91, luna: 0.04, astra: 0.05 } },
 				inputTranslation: { type: "choice", choice: "required", confidence: 0.99, probabilities: { required: 0.99, not_required: 0.01, uncertain: 0 } },
 				sourceLanguage: { type: "choice", choice: "es", confidence: 0.99, probabilities: { en: 0, es: 0.99, mixed: 0.01, other: 0 } },
 			},
@@ -52,7 +52,7 @@ describe("Jev decision client", () => {
 		});
 
 		const decision = await client.decideInput({ prompt: "mejora el router" });
-		assert.equal(decision.profile?.id, "astra-low");
+		assert.equal(decision.profile?.id, "sol");
 		assert.equal(decision.profile?.source, "automatic");
 		assert.equal(decision.inputTranslation, "required");
 		assert.equal(decision.sourceLanguage, "es");
@@ -62,21 +62,18 @@ describe("Jev decision client", () => {
 		assert.ok((decision.metadata.durationMs ?? -1) >= 0);
 	});
 
-	it("accepts a real-shaped Terra decision with the four-choice catalog", async () => {
+	it("rejects a disabled Terra decision", async () => {
 		const client = createJevDecisionClient(DEFAULT_JEV_CONFIG, {
 			systemOne: async () => ({
 				model: "jev-1.13.0", usage: { input_tokens: 10, output_tokens: 1 },
 				answers: {
-					profile: { type: "choice", choice: "terra", confidence: 0.9, probabilities: { luna: 0.05, terra: 0.9, vega: 0.03, astra: 0.02 } },
+					profile: { type: "choice", choice: "terra", confidence: 0.9, probabilities: { luna: 0.05, terra: 0.9, sol: 0.03, astra: 0.02 } },
 					inputTranslation: { type: "choice", choice: "required", confidence: 1, probabilities: { required: 1, not_required: 0, uncertain: 0 } },
 					sourceLanguage: { type: "choice", choice: "es", confidence: 1, probabilities: { en: 0, es: 1, mixed: 0, other: 0 } },
 				},
 			}),
 		});
-		const decision = await client.decideInput({ prompt: "Migra esta integración." });
-		assert.equal(decision.profileKey, "terra");
-		assert.equal(decision.profile?.model, "gpt-5.6-terra");
-		assert.equal(decision.profile?.thinkingLevel, "medium");
+		await assert.rejects(() => client.decideInput({ prompt: "Migra esta integración." }), /invalid Jev choice answer: profile/);
 	});
 
 	it("accepts an input bypass only for a sufficiently certain not-required result", async () => {
@@ -84,7 +81,7 @@ describe("Jev decision client", () => {
 			model: "jev-1.13",
 			usage: { input_tokens: 12, output_tokens: 0 },
 			answers: {
-				profile: { type: "choice", choice: "luna", confidence: 0.88, probabilities: { terra: 0, luna: 0.88, vega: 0.08, astra: 0.04 } },
+				profile: { type: "choice", choice: "luna", confidence: 0.88, probabilities: { sol: 0.08, luna: 0.88, astra: 0.04 } },
 				inputTranslation: { type: "choice", choice: "not_required", confidence: 0.9, probabilities: { required: 0.04, not_required: 0.9, uncertain: 0.06 } },
 				sourceLanguage: { type: "choice", choice: "en", confidence: 0.95, probabilities: { en: 0.95, es: 0.02, mixed: 0.02, other: 0.01 } },
 			},
@@ -104,7 +101,7 @@ describe("Jev decision client", () => {
 				model: "jev-1.13",
 				usage: { input_tokens: 1, output_tokens: 0 },
 				answers: {
-					profile: { type: "choice", choice: "luna", confidence: 0.9, probabilities: { terra: 0, luna: 0.9, vega: 0.05, astra: 0.05 } },
+					profile: { type: "choice", choice: "luna", confidence: 0.9, probabilities: { sol: 0.05, luna: 0.9, astra: 0.05 } },
 					inputTranslation: { type: "choice", choice: "not_required", confidence: 0.99, probabilities: { required: 0, not_required: 0.99, uncertain: 0.01 } },
 					sourceLanguage: { type: "choice", choice: "es", confidence: 0.99, probabilities: { en: 0, es: 0.99, mixed: 0.01, other: 0 } },
 				},
@@ -120,7 +117,7 @@ describe("Jev decision client", () => {
 			model: "jev-1.13",
 			usage: { input_tokens: 12, output_tokens: 0 },
 			answers: {
-				profile: { type: "choice", choice: "luna", confidence: 0.4, probabilities: { terra: 0, luna: 0.4, vega: 0.35, astra: 0.25 } },
+				profile: { type: "choice", choice: "luna", confidence: 0.4, probabilities: { sol: 0.35, luna: 0.4, astra: 0.25 } },
 				inputTranslation: { type: "choice", choice: "not_required", confidence: 0.4, probabilities: { required: 0.3, not_required: 0.4, uncertain: 0.3 } },
 				sourceLanguage: { type: "choice", choice: "en", confidence: 0.4, probabilities: { en: 0.4, es: 0.3, mixed: 0.2, other: 0.1 } },
 			},
@@ -192,7 +189,7 @@ describe("Jev decision client", () => {
 				systemOne: async () => ({
 					model: "jev-1.13", usage: { input_tokens: 1, output_tokens: 0 },
 					answers: {
-						profile: { type: "choice", choice: "luna", confidence: 1, probabilities: Object.fromEntries(maxProfileCostTier === 1 ? [["luna", 1]] : [["luna", 1], ["terra", 0], ["vega", 0]]) },
+						profile: { type: "choice", choice: "luna", confidence: 1, probabilities: Object.fromEntries(maxProfileCostTier === 1 ? [["luna", 1]] : [["luna", 1], ["sol", 0]]) },
 						inputTranslation: { type: "choice", choice: "required", confidence: 1, probabilities: { required: 1, not_required: 0, uncertain: 0 } },
 						sourceLanguage: { type: "choice", choice: "es", confidence: 1, probabilities: { en: 0, es: 1, mixed: 0, other: 0 } },
 					},

@@ -1,7 +1,13 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { DEFAULT_ROUTER_CONFIG } from "../src/config.ts";
-import { createDefaultModelProfileState, type ModelProfileApplicationResult } from "../src/model-profile.ts";
+import {
+	ASTRA_MEDIUM_PROFILE,
+	DEFAULT_MODEL_PROFILE,
+	SOL_PROFILE,
+	createDefaultModelProfileState,
+	type ModelProfileApplicationResult,
+} from "../src/model-profile.ts";
 import { prepareRoutedPrompt } from "../src/pipeline.ts";
 
 describe("routed prompt pipeline", () => {
@@ -25,7 +31,7 @@ describe("routed prompt pipeline", () => {
 		assert.equal(prepared.prompt, "Improve the router.");
 		assert.equal(prepared.details?.phase, "pre-dispatch");
 		assert.equal(prepared.details?.expanded, false);
-		assert.equal(prepared.details?.summary, "router: es→en profile:Luna Max model:openai-codex/gpt-5.6-luna thinking:max workModel:stratus/stratus-code");
+		assert.equal(prepared.details?.summary, `router: es→en profile:Luna Max model:${DEFAULT_MODEL_PROFILE.provider}/${DEFAULT_MODEL_PROFILE.model} thinking:max workModel:stratus/stratus-code`);
 	});
 
 	it("warns and dispatches the original prompt when the router model is unavailable", async () => {
@@ -98,10 +104,10 @@ describe("routed prompt pipeline", () => {
 		assert.match(prepared.details.summary, /profile:Astra Medium/);
 	});
 
-	it("selects and strips the Vega alias for Astra Low before routing", async () => {
+	it("selects and strips Sol before routing", async () => {
 		const appliedProfiles: string[] = [];
 		const prepared = await prepareRoutedPrompt({
-			prompt: "Use Vega: mejora el router",
+			prompt: "Use Sol: mejora el router",
 			config: { ...DEFAULT_ROUTER_CONFIG, state: "on" },
 			profileState: createDefaultModelProfileState(),
 			applyModelProfile: async (profile) => {
@@ -119,9 +125,9 @@ describe("routed prompt pipeline", () => {
 		assert.equal(prepared.action, "transform");
 		if (prepared.action !== "transform") throw new Error("expected transformed prompt");
 		assert.equal(prepared.prompt, "Improve: mejora el router");
-		assert.equal(prepared.profile.id, "astra-low");
-		assert.deepEqual(appliedProfiles, ["astra-low:prompt"]);
-		assert.match(prepared.details.summary, /profile:Vega/);
+		assert.equal(prepared.profile.id, "sol");
+		assert.deepEqual(appliedProfiles, ["sol:prompt"]);
+		assert.match(prepared.details.summary, /profile:Sol/);
 	});
 
 	it("blocks dispatch and leaves the prior profile active when profile application fails", async () => {
@@ -129,7 +135,7 @@ describe("routed prompt pipeline", () => {
 			prompt: "Use Astra: mejora el router",
 			config: { ...DEFAULT_ROUTER_CONFIG, state: "on" },
 			profileState: createDefaultModelProfileState(),
-			applyModelProfile: async () => ({ applied: false, error: "gpt-6-astra is unavailable" }),
+			applyModelProfile: async () => ({ applied: false, error: `${ASTRA_MEDIUM_PROFILE.model} is unavailable` }),
 			routePrompt: async () => ({
 				englishPrompt: "Improve the router.",
 				sourceLanguage: "es",
@@ -139,7 +145,7 @@ describe("routed prompt pipeline", () => {
 		});
 
 		assert.equal(result.action, "handled");
-		assert.match(result.message, /gpt-6-astra is unavailable/);
+		assert.match(result.message, new RegExp(`${ASTRA_MEDIUM_PROFILE.model} is unavailable`));
 		assert.equal(result.profile.id, "luna-max");
 	});
 
@@ -148,10 +154,10 @@ describe("routed prompt pipeline", () => {
 		const decision: any = {
 			model: "jev-1.13",
 			usage: { input_tokens: 10, output_tokens: 0 },
-			profile: { id: "astra-low", label: "Vega", provider: "openai-codex", model: "gpt-6-astra", thinkingLevel: "low", source: "automatic" as const },
-			profileKey: "vega" as const,
+			profile: { ...SOL_PROFILE, source: "automatic" as const },
+			profileKey: "sol" as const,
 			profileConfidence: 0.91,
-			profileProbabilities: { luna: 0.04, vega: 0.91, astra: 0.05 },
+			profileProbabilities: { luna: 0.04, sol: 0.91, astra: 0.05 },
 			inputTranslation: "required" as const,
 			inputTranslationConfidence: 0.98,
 			sourceLanguage: "es" as const,
@@ -166,7 +172,7 @@ describe("routed prompt pipeline", () => {
 				state: "on",
 				jev: { ...DEFAULT_ROUTER_CONFIG.jev! },
 			},
-			profileState: { ...createDefaultModelProfileState(), id: "astra-medium", label: "Astra Medium", provider: "openai-codex", model: "gpt-6-astra", thinkingLevel: "medium", source: "prompt" },
+			profileState: { ...ASTRA_MEDIUM_PROFILE, source: "prompt" },
 			jev: {
 				decideInput: async () => decision,
 				decideResponse: async () => { throw new Error("not used"); },
@@ -184,9 +190,9 @@ describe("routed prompt pipeline", () => {
 		});
 
 		assert.equal(prepared.action, "transform");
-		assert.equal(prepared.profile.id, "astra-low");
+		assert.equal(prepared.profile.id, "sol");
 		assert.equal(prepared.profile.source, "automatic");
-		assert.deepEqual(appliedProfiles, ["astra-low:automatic"]);
+		assert.deepEqual(appliedProfiles, ["sol:automatic"]);
 	});
 
 	it("forces Use Default to Luna only for the current prompt before returning to Jev", async () => {
@@ -195,9 +201,9 @@ describe("routed prompt pipeline", () => {
 			model: "jev-1.13",
 			usage: { input_tokens: 10, output_tokens: 0 },
 			profile,
-			profileKey: profile.id === "astra-low" ? "vega" as const : "luna" as const,
+			profileKey: profile.id === "sol" ? "sol" as const : "luna" as const,
 			profileConfidence: 0.95,
-			profileProbabilities: { luna: 0.95, vega: 0.03, astra: 0.02 },
+			profileProbabilities: { luna: 0.95, sol: 0.03, astra: 0.02 },
 			inputTranslation: "required" as const,
 			inputTranslationConfidence: 0.95,
 			sourceLanguage: "es" as const,
@@ -209,7 +215,7 @@ describe("routed prompt pipeline", () => {
 		const jev = {
 			decideInput: async () => {
 				automaticCalls += 1;
-				return automaticDecision({ id: "astra-low", label: "Vega", provider: "openai-codex", model: "gpt-6-astra", thinkingLevel: "low", source: "automatic" });
+				return automaticDecision({ ...SOL_PROFILE, source: "automatic" });
 			},
 			decideResponse: async () => { throw new Error("not used"); },
 		};
@@ -238,10 +244,10 @@ describe("routed prompt pipeline", () => {
 		const automatic = await prepare("continúa", forced.profile);
 		assert.equal(automatic.action, "transform");
 		if (automatic.action !== "transform") throw new Error("expected transformed automatic prompt");
-		assert.equal(automatic.profile.id, "astra-low");
+		assert.equal(automatic.profile.id, "sol");
 		assert.equal(automatic.profile.source, "automatic");
 		assert.equal(automaticCalls, 2);
-		assert.deepEqual(appliedProfiles, ["luna-max", "astra-low"]);
+		assert.deepEqual(appliedProfiles, ["luna-max", "sol"]);
 	});
 
 	it("bypasses the generative input translator only for an accepted Jev not-required decision", async () => {
@@ -257,10 +263,10 @@ describe("routed prompt pipeline", () => {
 				decideInput: async () => ({
 					model: "jev-1.13",
 					usage: { input_tokens: 10, output_tokens: 0 },
-					profile: { id: "luna-max", label: "Luna Max", provider: "openai-codex", model: "gpt-5.6-luna", thinkingLevel: "max", source: "automatic" as const },
+					profile: { ...DEFAULT_MODEL_PROFILE, source: "automatic" as const },
 					profileKey: "luna" as const,
 					profileConfidence: 0.9,
-					profileProbabilities: { luna: 0.9, vega: 0.06, astra: 0.04 },
+					profileProbabilities: { luna: 0.9, sol: 0.06, astra: 0.04 },
 					inputTranslation: "not_required" as const,
 					inputTranslationConfidence: 0.95,
 					sourceLanguage: "en" as const,
@@ -315,7 +321,7 @@ describe("routed prompt pipeline", () => {
 			jev: {
 				decideInput: async () => ({
 					model: "jev-1.13.0", usage: { input_tokens: 1, output_tokens: 0 },
-					profileConfidence: 0.5, profileProbabilities: { luna: 0.5, vega: 0.25, astra: 0.25 },
+					profileConfidence: 0.5, profileProbabilities: { luna: 0.5, sol: 0.25, astra: 0.25 },
 					inputTranslation: "required" as const, inputTranslationConfidence: 0.99,
 					sourceLanguage: "es" as const, sourceLanguageConfidence: 0.99, canBypassInputTranslation: false,
 					metadata: { model: "jev-1.13.0", inputTokens: 1, outputTokens: 0 },
@@ -389,8 +395,8 @@ describe("routed prompt pipeline", () => {
 			jev: {
 				decideInput: async () => ({
 					model: "jev-1.13", usage: { input_tokens: 1, output_tokens: 0 },
-					profile: { id: "astra-medium", label: "Astra Medium", provider: "openai-codex", model: "gpt-6-astra", thinkingLevel: "medium", source: "automatic" as const },
-					profileKey: "astra" as const, profileConfidence: 0.99, profileProbabilities: { luna: 0.01, vega: 0, astra: 0.99 },
+					profile: { ...ASTRA_MEDIUM_PROFILE, source: "automatic" as const },
+					profileKey: "astra" as const, profileConfidence: 0.99, profileProbabilities: { luna: 0.01, sol: 0, astra: 0.99 },
 					inputTranslation: "not_required" as const, inputTranslationConfidence: 0.99,
 					sourceLanguage: "en" as const, sourceLanguageConfidence: 0.99, canBypassInputTranslation: true,
 					metadata: { model: "jev-1.13", inputTokens: 1, outputTokens: 0 },

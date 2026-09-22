@@ -1,50 +1,24 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
-	ASTRA_LOW_PROFILE,
 	ASTRA_MEDIUM_PROFILE,
 	DEFAULT_MODEL_PROFILE,
+	SOL_PROFILE,
 	applyModelProfileDirective,
 	createDefaultModelProfileState,
 	parseModelProfilePrompt,
 } from "../src/model-profile.ts";
 
 describe("router model profile policy", () => {
-	it("maps English and Spanish Terra directives to the per-prompt Terra profile", () => {
+	it("selects Sol at xhigh", () => {
+		assert.equal(SOL_PROFILE.thinkingLevel, "xhigh");
+	});
+	it("does not select the disabled Terra profile", () => {
 		for (const prefix of ["Use Terra:", "Usa Terra:"]) {
-			const parsed = parseModelProfilePrompt(`${prefix} implement the integration`);
-			assert.equal(parsed.prompt, "implement the integration");
-			const profile = applyModelProfileDirective(createDefaultModelProfileState(), parsed);
-			assert.equal(profile.id, "terra-medium");
-			assert.equal(profile.provider, "openai-codex");
-			assert.equal(profile.model, "gpt-5.6-terra");
-			assert.equal(profile.thinkingLevel, "medium");
+			const prompt = `${prefix} implement the integration`;
+			assert.deepEqual(parseModelProfilePrompt(prompt), { prompt });
 		}
 	});
-	it("defines Luna Max as the default profile with Astra Medium and Vega alternates", () => {
-		assert.deepEqual(DEFAULT_MODEL_PROFILE, {
-			id: "luna-max",
-			label: "Luna Max",
-			provider: "openai-codex",
-			model: "gpt-5.6-luna",
-			thinkingLevel: "max",
-		});
-		assert.deepEqual(ASTRA_MEDIUM_PROFILE, {
-			id: "astra-medium",
-			label: "Astra Medium",
-			provider: "openai-codex",
-			model: "gpt-6-astra",
-			thinkingLevel: "medium",
-		});
-		assert.deepEqual(ASTRA_LOW_PROFILE, {
-			id: "astra-low",
-			label: "Vega",
-			provider: "openai-codex",
-			model: "gpt-6-astra",
-			thinkingLevel: "low",
-		});
-	});
-
 	it("starts with Luna Max from the default source", () => {
 		assert.deepEqual(createDefaultModelProfileState(), {
 			...DEFAULT_MODEL_PROFILE,
@@ -52,46 +26,17 @@ describe("router model profile policy", () => {
 		});
 	});
 
-	it("parses the strict English Astra phrase and removes only its control text", () => {
-		assert.deepEqual(parseModelProfilePrompt("  Use Astra: fix the router"), {
-			prompt: "fix the router",
-			profile: "astra-medium",
-			source: "prompt",
-		});
-	});
+	it("parses supported directives case-insensitively and strips their control text", () => {
+		const cases = [
+			["  Use Astra: fix the router", { prompt: "fix the router", profile: "astra-medium", source: "prompt" }],
+			["uSa AsTrA: arregla el router", { prompt: "arregla el router", profile: "astra-medium", source: "prompt" }],
+			["  Use Sol: use the new profile", { prompt: "use the new profile", profile: "sol", source: "prompt" }],
+			["uSa SoL: usa el perfil nuevo", { prompt: "usa el perfil nuevo", profile: "sol", source: "prompt" }],
+			["Use Default: continue", { prompt: "continue", profile: "luna-max", source: "default" }],
+			["Usa el modelo predeterminado: continúa", { prompt: "continúa", profile: "luna-max", source: "default" }],
+		] as const;
 
-	it("parses the strict Spanish Astra phrase case-insensitively", () => {
-		assert.deepEqual(parseModelProfilePrompt("uSa AsTrA: arregla el router"), {
-			prompt: "arregla el router",
-			profile: "astra-medium",
-			source: "prompt",
-		});
-	});
-
-	it("parses strict English and Spanish Vega phrases case-insensitively", () => {
-		assert.deepEqual(parseModelProfilePrompt("  Use Vega: use the fast profile"), {
-			prompt: "use the fast profile",
-			profile: "astra-low",
-			source: "prompt",
-		});
-		assert.deepEqual(parseModelProfilePrompt("uSa VeGa: usa el perfil rápido"), {
-			prompt: "usa el perfil rápido",
-			profile: "astra-low",
-			source: "prompt",
-		});
-	});
-
-	it("parses English and Spanish default reset phrases", () => {
-		assert.deepEqual(parseModelProfilePrompt("Use Default: continue"), {
-			prompt: "continue",
-			profile: "luna-max",
-			source: "default",
-		});
-		assert.deepEqual(parseModelProfilePrompt("Usa el modelo predeterminado: continúa"), {
-			prompt: "continúa",
-			profile: "luna-max",
-			source: "default",
-		});
+		for (const [prompt, expected] of cases) assert.deepEqual(parseModelProfilePrompt(prompt), expected);
 	});
 
 	it("does not select a profile for body mentions, unsupported phrases, or legacy thinking syntax", () => {
@@ -100,9 +45,10 @@ describe("router model profile policy", () => {
 			"Use Astra without the delimiter",
 			"Use Astra:",
 			"Use Astra:   ",
-			"Use Vega without the delimiter",
-			"Use Vega:",
-			"Use Vega:   ",
+			"Use Sol without the delimiter",
+			"Use Sol:",
+			"Use Sol:   ",
+			"Use Terra: use the disabled profile",
 			"Use Luna Max: use the normal profile",
 			"@thinking:max fix the router",
 			"```\nUse Astra: do not select this\n```",
@@ -120,8 +66,8 @@ describe("router model profile policy", () => {
 			...ASTRA_MEDIUM_PROFILE,
 			source: "prompt",
 		});
-		assert.deepEqual(applyModelProfileDirective(initial, parseModelProfilePrompt("Use Vega: use low effort")), {
-			...ASTRA_LOW_PROFILE,
+		assert.deepEqual(applyModelProfileDirective(initial, parseModelProfilePrompt("Use Sol: use the new profile")), {
+			...SOL_PROFILE,
 			source: "prompt",
 		});
 		assert.deepEqual(applyModelProfileDirective({ ...ASTRA_MEDIUM_PROFILE, source: "prompt" }, reset), {

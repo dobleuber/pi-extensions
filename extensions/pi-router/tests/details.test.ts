@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { ASTRA_MEDIUM_PROFILE, createDefaultModelProfileState } from "../src/model-profile.ts";
+import { ASTRA_MEDIUM_PROFILE, DEFAULT_MODEL_PROFILE, createDefaultModelProfileState } from "../src/model-profile.ts";
 import {
 	createRouterDetailsEntry,
 	extendRouterDetailsAfterCompletion,
@@ -15,15 +15,15 @@ describe("router details UX model", () => {
 			originalPrompt: "mejora el router",
 			transformedPrompt: "Improve the router.",
 			sourceLanguage: "es",
-			routerModel: "openai-codex/gpt-5.4-mini",
+			routerModel: "test-router",
 			requestedThinkingLevel: "medium",
 		}, { provider: "stratus", model: "stratus-code" });
 
 		assert.equal(entry.phase, "pre-dispatch");
 		assert.equal(entry.expanded, false);
-		assert.equal(entry.summary, "router: es→en profile:Luna Max model:openai-codex/gpt-5.6-luna thinking:max workModel:stratus/stratus-code");
+		assert.equal(entry.summary, `router: es→en profile:Luna Max model:${DEFAULT_MODEL_PROFILE.provider}/${DEFAULT_MODEL_PROFILE.model} thinking:max workModel:stratus/stratus-code`);
 		assert.equal(entry.details.profileSource, "default");
-		assert.equal(entry.details.profileModel, "openai-codex/gpt-5.6-luna");
+		assert.equal(entry.details.profileModel, `${DEFAULT_MODEL_PROFILE.provider}/${DEFAULT_MODEL_PROFILE.model}`);
 		assert.equal(entry.details.transformedPrompt, "Improve the router.");
 	});
 
@@ -32,7 +32,7 @@ describe("router details UX model", () => {
 			originalPrompt: "Use Astra: hola",
 			transformedPrompt: "hola",
 			sourceLanguage: "es",
-			routerModel: "openai-codex/gpt-5.4-mini",
+			routerModel: "test-router",
 			requestedThinkingLevel: "medium",
 		}, undefined, createDefaultModelProfileState(), {
 			requestedProfile: { ...ASTRA_MEDIUM_PROFILE, source: "prompt" },
@@ -41,7 +41,7 @@ describe("router details UX model", () => {
 
 		assert.equal(entry.details.profile, "Luna Max");
 		assert.equal(entry.details.requestedProfile, "Astra Medium");
-		assert.equal(entry.details.requestedProfileModel, "openai-codex/gpt-6-astra");
+		assert.equal(entry.details.requestedProfileModel, `${ASTRA_MEDIUM_PROFILE.provider}/${ASTRA_MEDIUM_PROFILE.model}`);
 		assert.equal(entry.details.requestedProfileThinkingLevel, "medium");
 		assert.equal(entry.details.effectiveModel, undefined);
 		assert.equal(entry.details.profileApplicationError, "model unavailable");
@@ -52,7 +52,7 @@ describe("router details UX model", () => {
 			originalPrompt: "hola",
 			transformedPrompt: "hello",
 			sourceLanguage: "es",
-			routerModel: "openai-codex/gpt-5.4-mini",
+			routerModel: "test-router",
 			requestedThinkingLevel: "low",
 		}, undefined);
 
@@ -67,7 +67,7 @@ describe("router details UX model", () => {
 			originalPrompt: "hola",
 			transformedPrompt: "hello",
 			sourceLanguage: "es",
-			routerModel: "openai-codex/gpt-5.4-mini",
+			routerModel: "test-router",
 			requestedThinkingLevel: "low",
 		}, undefined);
 

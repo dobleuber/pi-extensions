@@ -1,6 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { DEFAULT_ROUTER_CONFIG } from "../src/config.ts";
+import { DEFAULT_MODEL_PROFILE } from "../src/model-profile.ts";
 import {
 	classifyWorkModelFailure,
 	formatWorkModel,
@@ -14,7 +15,7 @@ describe("work-model policy", () => {
 
 		assert.deepEqual(workModel, { provider: "stratus", model: "stratus-code" });
 		assert.equal(DEFAULT_ROUTER_CONFIG.routerModel.provider, "openai-codex");
-		assert.equal(DEFAULT_ROUTER_CONFIG.routerModel.model, "gpt-5.6-luna");
+		assert.equal(DEFAULT_ROUTER_CONFIG.routerModel.model, DEFAULT_MODEL_PROFILE.model);
 	});
 
 	it("formats default, Stratus, and changed work models without changing router policy", () => {

@@ -1,6 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { DEFAULT_ROUTER_CONFIG } from "../src/config.ts";
+import { DEFAULT_MODEL_PROFILE } from "../src/model-profile.ts";
 import type { PiAiRuntime } from "../src/pi-ai-client.ts";
 import { createRouterMetadata, routePromptWithModel } from "../src/router-model.ts";
 
@@ -50,7 +51,7 @@ describe("remote router model", () => {
 		);
 
 		assert.equal(capture.model.provider, "openai-codex");
-		assert.equal(capture.model.id, "gpt-5.6-luna");
+		assert.equal(capture.model.id, DEFAULT_MODEL_PROFILE.model);
 		assert.equal(capture.options.reasoningEffort, "none");
 		assert.equal(result.englishPrompt, "Review the router.");
 		assert.equal(result.degradedReason, undefined);

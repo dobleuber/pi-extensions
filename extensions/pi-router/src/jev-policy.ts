@@ -1,17 +1,16 @@
 import {
-	ASTRA_LOW_PROFILE,
 	ASTRA_MEDIUM_PROFILE,
 	DEFAULT_MODEL_PROFILE,
-	TERRA_MEDIUM_PROFILE,
+	SOL_PROFILE,
 	type ModelProfile,
 	type ModelProfileState,
 } from "./model-profile.ts";
 
-export type JevProfileKey = "luna" | "terra" | "vega" | "astra";
+export type JevProfileKey = "luna" | "sol" | "astra";
 export type JevCostTier = 1 | 2 | 3;
 
-export const JEV_PROFILE_CRITERIA_VERSION = "jev-router-profile-rubric-v2" as const;
-export const JEV_PROFILE_CATALOG_VERSION = "jev-router-profile-catalog-v2" as const;
+export const JEV_PROFILE_CRITERIA_VERSION = "jev-router-profile-rubric-v3" as const;
+export const JEV_PROFILE_CATALOG_VERSION = "jev-router-profile-catalog-v4" as const;
 
 export interface JevProfileCandidate {
 	readonly key: JevProfileKey;
@@ -28,21 +27,15 @@ export const JEV_PROFILE_CANDIDATES: readonly JevProfileCandidate[] = Object.fre
 		costTier: 1,
 	},
 	{
-		key: "terra",
-		profile: TERRA_MEDIUM_PROFILE,
-		description: "Multi-step work with meaningful ambiguity: cross-file features requiring integration decisions, debugging with several plausible causes, dependency or API migrations, and design trade-offs within a bounded subsystem. Choose when resolving those uncertainties is central, not merely because several files are involved.",
-		costTier: 2,
-	},
-	{
-		key: "vega",
-		profile: ASTRA_LOW_PROFILE,
-		description: "Focused difficult bugs, subtle localized correctness changes, and constrained tool-assisted investigations where the scope and success condition are precise. Requires careful judgment but not sustained exploration, broad planning, or architectural redesign.",
+		key: "sol",
+		profile: SOL_PROFILE,
+		description: "Demanding programming tasks and multi-step agentic workflows—complex implementations, difficult debugging, and work requiring sustained tool use—when Sol offers better performance per cost than Astra Low.",
 		costTier: 2,
 	},
 	{
 		key: "astra",
 		profile: ASTRA_MEDIUM_PROFILE,
-		description: "Hard end-to-end work requiring sustained planning and verification: novel architecture, broad migrations, cross-subsystem debugging, complex research or tool workflows, and ambiguous requirements with interacting constraints.",
+		description: "Reserve for cases where choosing Astra over Sol is justified by novel architecture, deeply ambiguous requirements, or interacting cross-system constraints requiring exceptional reasoning and judgment. Complex implementation, difficult debugging, or sustained tool use alone should favor Sol, not trigger escalation to Astra.",
 		costTier: 3,
 	},
 ]);
