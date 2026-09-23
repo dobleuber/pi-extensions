@@ -89,6 +89,14 @@ describe("router details UX model", () => {
 			bypass: true,
 			prompt: "envia esto literal",
 		});
+		assert.deepEqual(parseSinglePromptBypass("@router:offline inspect"), {
+			bypass: false,
+			prompt: "@router:offline inspect",
+		});
+		assert.deepEqual(parseSinglePromptBypass("@router:off"), {
+			bypass: false,
+			prompt: "@router:off",
+		});
 		assert.deepEqual(parseSinglePromptBypass("hola"), { bypass: false, prompt: "hola" });
 
 		assert.deepEqual(resolveDetailsShortcut(), { shortcut: "ctrl+alt+r" });

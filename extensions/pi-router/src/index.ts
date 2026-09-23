@@ -762,7 +762,7 @@ export function installPiRouter(pi: ExtensionAPI, dependencies: PiRouterDependen
 			responseTranslationOutcome,
 			responseRecommendation,
 		);
-		if (fallbackEvents.length > 0) {
+		if (translatedBlocks.some((translated) => translated.degradedReason)) {
 			notify(ctx, `Pi router warning: ${fallbackEvents.join("; ")}; showing original or partially translated answer.`, "warning");
 		}
 		const replacements = new Map<number, string>();
@@ -822,7 +822,9 @@ export function installPiRouter(pi: ExtensionAPI, dependencies: PiRouterDependen
 
 		if (prepared.action === "continue") {
 			if (rogerSpeech) pendingRoutedTurns.push({ shouldTranslateFinalAnswer: true, rogerSpeech: true });
-			return { action: "continue" };
+			return prepared.bypassed
+				? { action: "transform", text: prepared.prompt }
+				: { action: "continue" };
 		}
 		if (prepared.action === "handled") {
 			discardDeferredProfile(prepared.profile, ctx);

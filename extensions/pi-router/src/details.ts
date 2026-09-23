@@ -160,11 +160,9 @@ export function extendRouterDetailsAfterCompletion(
 
 export function parseSinglePromptBypass(text: string): { bypass: boolean; prompt: string } {
 	const trimmed = text.trimStart();
-	const prefix = "@router:off";
-	if (!trimmed.startsWith(prefix)) {
-		return { bypass: false, prompt: text };
-	}
-	return { bypass: true, prompt: trimmed.slice(prefix.length).trimStart() };
+	const match = /^@router:off(?=\s)/.exec(trimmed);
+	const prompt = match ? trimmed.slice(match[0].length).trimStart() : "";
+	return prompt ? { bypass: true, prompt } : { bypass: false, prompt: text };
 }
 
 export function resolveDetailsShortcut(shortcut = "ctrl+alt+r"): { shortcut: string; conflict?: string } {

@@ -179,19 +179,6 @@ function normalizeRouterPayload(
 	if (/^fix the tests[.!]?$/i.test(restoredPrompt) && !/\b(?:arregla|corrige|fix)\b[\s\S]*\btests?\b/i.test(originalPrompt)) {
 		return passthrough(originalPrompt, "router model leaked legacy example output");
 	}
-	const formattingLoss = promptFormattingLoss(originalPrompt, restoredPrompt);
-	if (formattingLoss) {
-		return {
-			englishPrompt: originalPrompt,
-			sourceLanguage,
-			thinkingLevel,
-			translateFinalAnswer,
-			usedConversationContext,
-			resolvedReferences,
-			unresolvedReferences,
-			degradedReason: `router model lost prompt formatting: ${formattingLoss}`,
-		};
-	}
 	return {
 		englishPrompt: restoredPrompt,
 		sourceLanguage,
@@ -205,20 +192,6 @@ function normalizeRouterPayload(
 
 function requiredPromptLiterals(text: string): string[] {
 	return [...text.matchAll(/`[^`\n]+`|"[^"\n]+"|'[^'\n]+'/g)].map((match) => match[0]);
-}
-
-function promptFormattingLoss(originalPrompt: string, translatedPrompt: string): string | null {
-	if (/```/.test(originalPrompt)) return null;
-	const originalLines = nonEmptyLineCount(originalPrompt);
-	const translatedLines = nonEmptyLineCount(translatedPrompt);
-	if (originalLines > 1 && translatedLines < originalLines) {
-		return `line layout collapsed from ${originalLines} to ${translatedLines} non-empty lines`;
-	}
-	return null;
-}
-
-function nonEmptyLineCount(text: string): number {
-	return text.split(/\r?\n/).filter((line) => line.trim().length > 0).length;
 }
 
 function parseRouterJsonObject(content: string): any {

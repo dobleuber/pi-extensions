@@ -76,6 +76,36 @@ describe("pi-router extension entrypoint", () => {
 		assert.equal(responseDecisions, 0);
 	});
 
+	it("dispatches only the task for a single-prompt router bypass", async () => {
+		const handlers = new Map<string, Array<(event: any, ctx: any) => Promise<any>>>();
+		let decisionCalls = 0;
+		let routeCalls = 0;
+		const pi = {
+			registerCommand() {},
+			on(event: string, handler: (event: any, ctx: any) => Promise<any>) {
+				handlers.set(event, [...(handlers.get(event) ?? []), handler]);
+			},
+			setThinkingLevel() {},
+			appendEntry() {},
+		};
+		const ctx = { ui: { notify() {}, setStatus() {} } };
+		installPiRouter(pi as any, {
+			config: { ...DEFAULT_TEST_CONFIG, state: "on" },
+			stateStore: { loadState: () => "on" as const, saveState() {} },
+			jev: {
+				decideInput: async () => { decisionCalls += 1; throw new Error("should not decide"); },
+				decideResponse: async () => { throw new Error("should not decide response"); },
+			},
+			routePrompt: async () => { routeCalls += 1; throw new Error("should not translate"); },
+		});
+
+		const result = await handlers.get("input")![0]({ text: "@router:off inspect the router", source: "interactive" }, ctx);
+
+		assert.deepEqual(result, { action: "transform", text: "inspect the router" });
+		assert.equal(decisionCalls, 0);
+		assert.equal(routeCalls, 0);
+	});
+
 	it("sends only a bounded recent conversation summary to Jev", async () => {
 		const handlers = new Map<string, Array<(event: any, ctx: any) => Promise<any>>>();
 		let receivedState: any;
@@ -416,16 +446,19 @@ describe("pi-router extension entrypoint", () => {
 	it("keeps the generative response translator when Jev response gating fails", async () => {
 		const handlers = new Map<string, Array<(event: any, ctx: any) => Promise<any>>>();
 		const entries: any[] = [];
+		const notifications: string[] = [];
 		let translationCalls = 0;
+		let failTranslation = false;
 		const pi = {
 			registerCommand() {},
 			on(event: string, handler: (event: any, ctx: any) => Promise<any>) { handlers.set(event, [...(handlers.get(event) ?? []), handler]); },
 			setThinkingLevel() {},
 			appendEntry(type: string, data: any) { entries.push([type, data]); },
 		};
-		const ctx = { ui: { notify() {}, setStatus() {} } };
+		const ctx = { ui: { notify(message: string) { notifications.push(message); }, setStatus() {} } };
 		installPiRouter(pi as any, {
-			config: { ...DEFAULT_TEST_CONFIG, jev: { ...DEFAULT_TEST_CONFIG.jev! } },
+			config: { ...DEFAULT_TEST_CONFIG, state: "on", jev: { ...DEFAULT_TEST_CONFIG.jev! } },
+			stateStore: { loadState: () => "on", saveState() {} },
 			jev: {
 				decideInput: async () => ({
 					model: "jev-1.13", usage: { input_tokens: 1, output_tokens: 0 },
@@ -440,7 +473,9 @@ describe("pi-router extension entrypoint", () => {
 			routePrompt: async () => ({ englishPrompt: "Answer.", sourceLanguage: "es", thinkingLevel: "medium", translateFinalAnswer: true }),
 			translateFinalAnswer: async (answer: string) => {
 				translationCalls += 1;
-				return { englishAnswer: answer, spanishAnswer: "Listo." };
+				return failTranslation
+					? { englishAnswer: answer, spanishAnswer: answer, degradedReason: "translator unavailable" }
+					: { englishAnswer: answer, spanishAnswer: "Listo." };
 			},
 		});
 		await handlers.get("input")![0]({ text: "responde", source: "interactive" }, ctx);
@@ -449,6 +484,17 @@ describe("pi-router extension entrypoint", () => {
 		assert.deepEqual(result.message.content, [{ type: "text", text: "Listo." }]);
 		assert.equal(entries.at(-1)![1].details.responseTranslationOutcome, "fallback");
 		assert.match(entries.at(-1)![1].details.fallbackEvents[0], /invalid response decision/);
+		assert.deepEqual(notifications, []);
+
+		failTranslation = true;
+		await handlers.get("input")![0]({ text: "responde de nuevo", source: "interactive" }, ctx);
+		const failed = await handlers.get("message_end")![0]({ message: { role: "assistant", content: [{ type: "text", text: "Answer." }] } }, ctx);
+		assert.deepEqual(failed.message.content, [{ type: "text", text: "Answer." }]);
+		assert.equal(translationCalls, 2);
+		assert.match(notifications.at(-1) ?? "", /translator unavailable/);
+		assert.match(notifications.at(-1) ?? "", /invalid response decision/);
+		assert.match(entries.at(-1)![1].details.fallbackEvents.join("; "), /invalid response decision/);
+		assert.match(entries.at(-1)![1].details.fallbackEvents.join("; "), /translator unavailable/);
 	});
 
 	it("translates only final Codex text blocks and restores them in transient context", async () => {

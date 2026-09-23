@@ -164,6 +164,56 @@ describe("remote router model", () => {
 		assert.equal(result.englishPrompt, "Review extensions/pi-router carefully.");
 	});
 
+	it("accepts a faithful translation when ordinary prose line breaks are joined", async () => {
+		const result = await routePromptWithModel(
+			"Revisa el router.\nNo hagas cambios todavía.\nEnumera los riesgos.",
+			TEST_ROUTER_CONFIG,
+			{},
+			runtimeFor(JSON.stringify({
+				sourceLanguage: "es",
+				translation: "Review the router. Don't make changes yet. List the risks.",
+				translateFinalAnswer: true,
+			})),
+		);
+
+		assert.equal(result.englishPrompt, "Review the router. Don't make changes yet. List the risks.");
+		assert.equal(result.sourceLanguage, "es");
+		assert.equal(result.degradedReason, undefined);
+	});
+
+	it("accepts a translation when Markdown list layout changes", async () => {
+		const prompt = "Revisa estas reglas:\n- conserva la estructura\n- ejecuta las pruebas";
+		const result = await routePromptWithModel(
+			prompt,
+			TEST_ROUTER_CONFIG,
+			{},
+			runtimeFor(JSON.stringify({
+				sourceLanguage: "es",
+				translation: "Review these rules: preserve the structure and run the tests.",
+				translateFinalAnswer: true,
+			})),
+		);
+
+		assert.equal(result.englishPrompt, "Review these rules: preserve the structure and run the tests.");
+		assert.equal(result.degradedReason, undefined);
+	});
+
+	it("accepts a translation when paragraph boundaries change", async () => {
+		const result = await routePromptWithModel(
+			"Revisa el router.\n\nEnumera los riesgos.",
+			TEST_ROUTER_CONFIG,
+			{},
+			runtimeFor(JSON.stringify({
+				sourceLanguage: "es",
+				translation: "Review the router. List the risks.",
+				translateFinalAnswer: true,
+			})),
+		);
+
+		assert.equal(result.englishPrompt, "Review the router. List the risks.");
+		assert.equal(result.degradedReason, undefined);
+	});
+
 	it("rejects contaminated non-JSON output instead of guessing at a translation", async () => {
 		const result = await routePromptWithModel(
 			"Dame el estado actual del router",
