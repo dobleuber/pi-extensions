@@ -328,6 +328,78 @@ describe("pi-router extension entrypoint", () => {
 		assert.equal(appended.at(-1)![1].details.spanishAnswer, "Listo.");
 	});
 
+	it("translates a subagent completion after a Spanish turn without leaking into unrelated or English turns", async () => {
+		const handlers = new Map<string, Array<(event: any, ctx: any) => Promise<any>>>();
+		const translatedInputs: string[] = [];
+		const pi = {
+			registerCommand() {},
+			on(event: string, handler: (event: any, ctx: any) => Promise<any>) { handlers.set(event, [...(handlers.get(event) ?? []), handler]); },
+			setThinkingLevel() {},
+			appendEntry() {},
+		};
+		const ctx = { ui: { notify() {}, setStatus() {} } };
+		installPiRouter(pi as any, {
+			config: { ...DEFAULT_TEST_CONFIG, state: "on" },
+			stateStore: { loadState: () => "on" as const, saveState() {} },
+			jev: {
+				decideInput: async () => { throw new Error("input decision unavailable"); },
+				decideResponse: async () => ({
+					model: "jev-1.13",
+					usage: { input_tokens: 8, output_tokens: 0 },
+					translation: "required" as const,
+					confidence: 0.99,
+					probabilities: { required: 0.99, not_required: 0.005, uncertain: 0.005 },
+					canBypass: false,
+					metadata: { model: "jev-1.13", inputTokens: 8, outputTokens: 0 },
+				}),
+			},
+			routePrompt: async (prompt: string) => ({
+				englishPrompt: prompt === "trabaja" ? "Do the work." : prompt,
+				sourceLanguage: prompt === "trabaja" ? "es" : "en",
+				translateFinalAnswer: prompt === "trabaja",
+			}),
+			translateFinalAnswer: async (answer: string) => {
+				translatedInputs.push(answer);
+				return { englishAnswer: answer, spanishAnswer: `Traducido: ${answer}` };
+			},
+		});
+		const event = (text: string) => ({ message: { role: "assistant", stopReason: "stop", content: [{ type: "text", text }] } });
+		const endRun = async (text: string) => {
+			await handlers.get("turn_end")![0]({ ...event(text), toolResults: [] }, ctx);
+			await handlers.get("agent_end")![0]({ messages: [event(text).message] }, ctx);
+		};
+
+		await handlers.get("input")![0]({ text: "trabaja", source: "interactive" }, ctx);
+		await handlers.get("turn_start")![0]({}, ctx);
+		await handlers.get("message_start")![0]({ message: { role: "user", content: [{ type: "text", text: "Do the work." }] } }, ctx);
+		const initial = await handlers.get("message_end")![0](event("Work started."), ctx);
+		assert.equal(initial.message.content[0].text, "Traducido: Work started.");
+		await endRun("Work started.");
+
+		const followUp = "Both subagents completed.\n\n- Focused: 50 passed.\n- Full: 148 passed.\n\nThese were harness tests.";
+		await handlers.get("turn_start")![0]({}, ctx);
+		await handlers.get("message_start")![0]({ message: { role: "custom", customType: "subagent-notify", content: "Background task completed" } }, ctx);
+		const completion = await handlers.get("message_end")![0](event(followUp), ctx);
+		assert.equal(completion?.message?.content[0].text, `Traducido: ${followUp}`);
+		assert.deepEqual(translatedInputs, ["Work started.", followUp]);
+		await endRun(followUp);
+
+		await handlers.get("turn_start")![0]({}, ctx);
+		await handlers.get("message_start")![0]({ message: { role: "custom", customType: "unrelated-extension", content: "Unrelated event" } }, ctx);
+		assert.equal(await handlers.get("message_end")![0](event("Unrelated answer."), ctx), undefined);
+		await endRun("Unrelated answer.");
+
+		await handlers.get("input")![0]({ text: "English task", source: "interactive" }, ctx);
+		await handlers.get("turn_start")![0]({}, ctx);
+		await handlers.get("message_start")![0]({ message: { role: "user", content: [{ type: "text", text: "English task" }] } }, ctx);
+		assert.equal(await handlers.get("message_end")![0](event("English answer."), ctx), undefined);
+		await endRun("English answer.");
+		await handlers.get("turn_start")![0]({}, ctx);
+		await handlers.get("message_start")![0]({ message: { role: "custom", customType: "subagent-notify", content: "Old completion" } }, ctx);
+		assert.equal(await handlers.get("message_end")![0](event("English follow-up."), ctx), undefined);
+		assert.deepEqual(translatedInputs, ["Work started.", followUp]);
+	});
+
 	it("uses Jev to skip response translation when the final response is already Spanish", async () => {
 		const commands = new Map<string, { handler: (args: string, ctx: any) => Promise<void> }>();
 		const handlers = new Map<string, Array<(event: any, ctx: any) => Promise<any>>>();

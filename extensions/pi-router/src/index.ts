@@ -381,6 +381,7 @@ export function installPiRouter(pi: ExtensionAPI, dependencies: PiRouterDependen
 	let activeProfile = createDefaultModelProfileState();
 	let lastDetails: RouterDetailsEntry | undefined;
 	let activeAgentTurn: ActiveAgentTurn | undefined;
+	let asyncFollowUpLanguage: "es" | undefined;
 	let sawTurnLifecycleEvent = false;
 
 	function serialize<T>(tail: "input" | "messageEnd", work: () => Promise<T>): Promise<T> {
@@ -448,6 +449,10 @@ export function installPiRouter(pi: ExtensionAPI, dependencies: PiRouterDependen
 	}
 
 	function markPendingTurnConsumed(pendingTurn: PendingRoutedTurn): void {
+		if (pendingTurn.details) {
+			const language = pendingTurn.details.details.sourceLanguage;
+			asyncFollowUpLanguage = config.state === "on" && (language === "es" || language === "mixed") ? "es" : undefined;
+		}
 		if (activeAgentTurn?.pending === pendingTurn) {
 			activeAgentTurn.pending = undefined;
 			activeAgentTurn.carryPendingToNextTurn = false;
@@ -486,7 +491,10 @@ export function installPiRouter(pi: ExtensionAPI, dependencies: PiRouterDependen
 		config = { ...config, state };
 		stateStore.saveState(state);
 		ctx?.ui?.setStatus?.("pi-router", `router:${config.state}`);
-		if (state !== "on") return;
+		if (state !== "on") {
+			asyncFollowUpLanguage = undefined;
+			return;
+		}
 		activeProfile = createDefaultModelProfileState();
 
 		const application = await applyPiModelProfile(pi, ctx, activeProfile, dependencies, activeProfile);
@@ -546,6 +554,7 @@ export function installPiRouter(pi: ExtensionAPI, dependencies: PiRouterDependen
 		pendingRoutedTurns.length = 0;
 		deferredProfileApplications.length = 0;
 		activeAgentTurn = undefined;
+		asyncFollowUpLanguage = undefined;
 		sawTurnLifecycleEvent = false;
 		lastDetails = undefined;
 		activeProfile = createDefaultModelProfileState();
@@ -575,6 +584,13 @@ export function installPiRouter(pi: ExtensionAPI, dependencies: PiRouterDependen
 	});
 
 	pi.on("message_start", async (event: any, ctx) => {
+		// Background completions start a new agent run without a user input event.
+		if (event.message?.role === "custom" && event.message.customType === "subagent-notify") {
+			if (config.state === "on" && asyncFollowUpLanguage === "es" && activeAgentTurn && !activeAgentTurn.pending && pendingRoutedTurns.length === 0) {
+				activeAgentTurn.pending = { shouldTranslateFinalAnswer: true, rogerSpeech: false, jev: configuredJevClient() };
+			}
+			return;
+		}
 		if (event.message?.role !== "user") return;
 		sawTurnLifecycleEvent = true;
 		if (!activeAgentTurn) activeAgentTurn = { carryPendingToNextTurn: false };
@@ -783,6 +799,7 @@ export function installPiRouter(pi: ExtensionAPI, dependencies: PiRouterDependen
 
 	pi.on("input", async (event, ctx) => serialize("input", async () => {
 		refreshRouterSettingsFromStore();
+		asyncFollowUpLanguage = undefined;
 		const rogerSpeech = isRogerSpeechRequest(event);
 
 		if (config.state === "on" && event.source !== "extension" && isNativeModelControl(event.text)) {
