@@ -42,7 +42,8 @@ interface PreservedBlockMask {
 
 const ROUTER_SYSTEM_PROMPT = `You are Pi Router, a translation/classification function. Return ONLY one JSON object. No prose, no markdown, no extra tasks, no chat transcript.
 Rules:
-- Translate the complete task into precise English for a coding work model.
+- Translate the complete task into precise, natural, idiomatic English for a coding work model. Preserve its meaning and intent instead of mirroring source-language syntax.
+- The translation value must contain only the translated task. Never copy the JSON input envelope or its conversationContext field into the translation.
 - If sourceLanguage is es or mixed, translateFinalAnswer must be true.
 - If sourceLanguage is en, translateFinalAnswer should be false.
 - sourceLanguage is based on the original task text, not the English translation.
@@ -162,11 +163,16 @@ function normalizeRouterPayload(
 	const usedConversationContext = payload?.usedConversationContext === true;
 	const resolvedReferences = parseStringArray(payload?.resolvedReferences);
 	const unresolvedReferences = parseStringArray(payload?.unresolvedReferences);
-	const translatedPrompt = typeof payload?.translation === "string" && payload.translation.trim()
+	const candidateTranslation = typeof payload?.translation === "string" && payload.translation.trim()
 		? payload.translation.trim()
 		: typeof payload?.englishPrompt === "string" && payload.englishPrompt.trim()
 			? payload.englishPrompt.trim()
 			: originalPrompt;
+	const unwrappedTranslation = unwrapTranslatedTask(candidateTranslation, originalPrompt);
+	if (unwrappedTranslation.error) {
+		return passthrough(originalPrompt, unwrappedTranslation.error);
+	}
+	const translatedPrompt = unwrappedTranslation.task;
 	const placeholderMismatch = validatePlaceholderIntegrity(maskedPrompt, translatedPrompt);
 	if (placeholderMismatch) {
 		return passthrough(originalPrompt, `router model ${placeholderMismatch}`);
@@ -188,6 +194,43 @@ function normalizeRouterPayload(
 		resolvedReferences,
 		unresolvedReferences,
 	};
+}
+
+function unwrapTranslatedTask(
+	translation: string,
+	originalPrompt: string,
+): { task: string; error?: string } {
+	const originalObject = parseJsonRecord(originalPrompt);
+	if (isRouterInputEnvelope(originalObject)) {
+		// A user may intentionally ask the router to translate this JSON shape.
+		return { task: translation };
+	}
+
+	const translatedObject = parseJsonRecord(translation);
+	if (!isRouterInputEnvelope(translatedObject)) return { task: translation };
+	if (typeof translatedObject.task !== "string" || !translatedObject.task.trim()) {
+		return { task: originalPrompt, error: "router model returned an invalid task envelope" };
+	}
+	return { task: translatedObject.task.trim() };
+}
+
+function parseJsonRecord(value: string): Record<string, unknown> | undefined {
+	try {
+		const parsed: unknown = JSON.parse(value);
+		return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+			? parsed as Record<string, unknown>
+			: undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+function isRouterInputEnvelope(value: Record<string, unknown> | undefined): value is Record<string, unknown> {
+	if (!value) return false;
+	const keys = Object.keys(value);
+	return keys.length > 0
+		&& keys.every((key) => key === "task" || key === "conversationContext")
+		&& (!Object.prototype.hasOwnProperty.call(value, "conversationContext") || typeof value.conversationContext === "string");
 }
 
 function requiredPromptLiterals(text: string): string[] {

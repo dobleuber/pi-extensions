@@ -81,6 +81,8 @@ describe("remote router model", () => {
 		assert.equal(capture.options.timeoutMs, TEST_ROUTER_CONFIG.timeoutMs);
 		assert.equal(capture.options.reasoningEffort, "none");
 		assert.match(capture.context.systemPrompt, /Return ONLY one JSON object/);
+		assert.match(capture.context.systemPrompt, /natural, idiomatic English/);
+		assert.match(capture.context.systemPrompt, /translation value must contain only the translated task/);
 		assert.deepEqual(JSON.parse(capture.context.messages[0].content[0].text), { task: "mejora el router de Pi" });
 		assert.equal(result.englishPrompt, "Improve the Pi router.");
 		assert.equal(result.sourceLanguage, "es");
@@ -117,6 +119,43 @@ describe("remote router model", () => {
 		});
 		assert.equal(result.usedConversationContext, true);
 		assert.deepEqual(result.resolvedReferences, ["eso = router details toggle"]);
+	});
+
+	it("unwraps a router input envelope echoed inside the translated task", async () => {
+		const translatedTask = "Implement the reviewed specification.";
+		const echoedEnvelope = JSON.stringify({
+			task: translatedTask,
+			conversationContext: "Prior discussion that must not be copied into the task.",
+		});
+		const result = await routePromptWithModel(
+			"Implementa la especificación revisada.",
+			TEST_ROUTER_CONFIG,
+			{ conversationSummary: "Prior discussion that must not be copied into the task." },
+			runtimeFor(JSON.stringify({
+				sourceLanguage: "es",
+				translation: echoedEnvelope,
+				translateFinalAnswer: true,
+			})),
+		);
+
+		assert.equal(result.englishPrompt, translatedTask);
+		assert.equal(result.degradedReason, undefined);
+	});
+
+	it("preserves user-authored JSON with a task field", async () => {
+		const originalJson = JSON.stringify({ task: "review this payload" });
+		const result = await routePromptWithModel(
+			originalJson,
+			TEST_ROUTER_CONFIG,
+			{},
+			runtimeFor(JSON.stringify({
+				sourceLanguage: "en",
+				translation: originalJson,
+				translateFinalAnswer: false,
+			})),
+		);
+
+		assert.equal(result.englishPrompt, originalJson);
 	});
 
 	it("preserves paths and fenced blocks through opaque placeholders", async () => {
